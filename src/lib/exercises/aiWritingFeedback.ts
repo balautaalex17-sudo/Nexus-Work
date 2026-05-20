@@ -1,0 +1,188 @@
+import { z } from "zod";
+import { chatJson } from "@/lib/gemini/client";
+import type { Exam } from "@/lib/exercises/types";
+import type { WritingExercise } from "@/lib/exercises/types";
+import {
+  WRITING_GENRE_HINTS,
+  WRITING_GENRE_LABEL,
+  WRITING_LEVEL_RUBRIC,
+  type WritingGenre,
+  type WritingPartId,
+  writingExamSpec,
+  writingWordTarget,
+} from "@/lib/exercises/writing";
+
+const bandScore = z.number().int().min(0).max(5);
+
+const notesShape = z.object({
+  content: z.array(z.string()).default([]),
+  communicativeAchievement: z.array(z.string()).default([]),
+  organisation: z.array(z.string()).default([]),
+  language: z.array(z.string()).default([]),
+});
+
+export const writingFeedbackSchema = z.object({
+  content: bandScore,
+  communicativeAchievement: bandScore,
+  organisation: bandScore,
+  language: bandScore,
+  overall: z.string(),
+  notes: notesShape,
+  accepted: z.boolean().default(true),
+});
+
+export type WritingFeedback = z.infer<typeof writingFeedbackSchema>;
+
+const FEEDBACK_TIMEOUT_MS = Number(process.env.AI_WRITING_TIMEOUT_MS ?? "45000");
+
+function feedbackSignal() {
+  const ms = Number.isFinite(FEEDBACK_TIMEOUT_MS) ? FEEDBACK_TIMEOUT_MS : 45000;
+  return AbortSignal.timeout(ms);
+}
+
+function placeholderFeedback(message: string): WritingFeedback {
+  return {
+    content: 0,
+    communicativeAchievement: 0,
+    organisation: 0,
+    language: 0,
+    overall: message,
+    notes: { content: [], communicativeAchievement: [], organisation: [], language: [] },
+    accepted: false,
+  };
+}
+
+function buildFeedbackPrompt(input: {
+  exam: Exam;
+  part: WritingPartId;
+  genre: WritingGenre;
+  prompt: string;
+  taskTitle?: string;
+  taskContext?: string;
+  taskPoints?: string[];
+  finalInstruction?: string;
+  picturePrompts?: string[];
+  wordRange: [number, number];
+  sourceTexts?: Array<{ id: string; content: string }>;
+  essayText: string;
+}) {
+  const wordCount = input.essayText.trim() ? input.essayText.trim().split(/\s+/).length : 0;
+  const spec = writingExamSpec(input.exam, input.part);
+  const genreLabel = WRITING_GENRE_LABEL[input.genre];
+  const genreHint = WRITING_GENRE_HINTS[input.genre];
+  const rubric = WRITING_LEVEL_RUBRIC[input.exam];
+
+  const sources = input.sourceTexts && input.sourceTexts.length > 0
+    ? `\nSource texts (the candidate had to summarise these):\n${input.sourceTexts
+        .map((text) => `- ${text.id}: ${text.content}`)
+        .join("\n")}`
+    : "";
+  const structuredBrief = [
+    input.taskTitle ? `Task title: ${input.taskTitle}` : "",
+    input.taskContext ? `Context: ${input.taskContext}` : "",
+    input.taskPoints && input.taskPoints.length > 0
+      ? `Required points:\n${input.taskPoints.map((point) => `- ${point}`).join("\n")}`
+      : "",
+    input.picturePrompts && input.picturePrompts.length > 0
+      ? `Picture prompts:\n${input.picturePrompts.map((point, index) => `- Picture ${index + 1}: ${point}`).join("\n")}`
+      : "",
+    input.finalInstruction ? `Final instruction: ${input.finalInstruction}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return `You are a senior Cambridge English examiner marking a ${input.exam} ${spec.examHeading} answer.
+
+${rubric}
+
+Genre: ${genreLabel}.
+Genre conventions to enforce: ${genreHint}
+
+Task brief shown to the candidate:
+"""
+${input.prompt}
+${structuredBrief ? `\n\n${structuredBrief}` : ""}
+"""${sources}
+
+Official word requirement: ${writingWordTarget(input.exam, input.part)}.
+Internal word-count bounds: ${input.wordRange[0]}-${input.wordRange[1]} words.
+The candidate wrote ${wordCount} words.
+
+Candidate response:
+"""
+${input.essayText}
+"""
+
+Mark on the Cambridge four-criteria rubric, awarding an integer band 0-5 for EACH of:
+- Content: did the response answer the task and cover required points?
+- Communicative Achievement: appropriate register, conventions, and impact on the target reader.
+- Organisation: cohesion, paragraphing, signposting, logical flow.
+- Language: range and accuracy of vocabulary and grammar at the target level.
+
+Then write:
+- "overall": one paragraph (50-90 words) summarising the strongest and weakest aspects in plain English.
+- "notes": exactly 2-3 short, specific, actionable bullets per criterion. Each bullet must reference the candidate's actual response (quote a phrase or describe a concrete moment). No generic praise.
+
+Reply with strict JSON only:
+{
+  "content": <0-5>,
+  "communicativeAchievement": <0-5>,
+  "organisation": <0-5>,
+  "language": <0-5>,
+  "overall": "...",
+  "notes": {
+    "content": ["...", "..."],
+    "communicativeAchievement": ["...", "..."],
+    "organisation": ["...", "..."],
+    "language": ["...", "..."]
+  }
+}`;
+}
+
+export async function gradeWriting(input: {
+  exercise: WritingExercise;
+  essayText: string;
+}): Promise<WritingFeedback> {
+  const essayText = input.essayText.trim();
+  if (!essayText) {
+    return placeholderFeedback("Empty response. Write at least the minimum word count and submit again.");
+  }
+
+  try {
+    const prompt = buildFeedbackPrompt({
+      exam: input.exercise.exam,
+      part: input.exercise.type as WritingPartId,
+      genre: input.exercise.genre,
+      prompt: input.exercise.prompt,
+      taskTitle: input.exercise.taskTitle,
+      taskContext: input.exercise.taskContext,
+      taskPoints: input.exercise.taskPoints,
+      finalInstruction: input.exercise.finalInstruction,
+      picturePrompts: input.exercise.picturePrompts,
+      wordRange: input.exercise.wordRange,
+      sourceTexts: input.exercise.sourceTexts,
+      essayText,
+    });
+
+    const raw = await chatJson<unknown>({
+      prompt,
+      temperature: 0.15,
+      signal: feedbackSignal(),
+    });
+
+    const parsed = writingFeedbackSchema.safeParse(raw);
+    if (!parsed.success) {
+      return placeholderFeedback("Marker returned an unreadable verdict. Re-submit to try again.");
+    }
+    return parsed.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Marker unavailable.";
+    return placeholderFeedback(`AI marker temporarily unavailable: ${message}`);
+  }
+}
+
+export function writingTotalBand(feedback: WritingFeedback) {
+  return feedback.content + feedback.communicativeAchievement + feedback.organisation + feedback.language;
+}
+
+export const WRITING_MAX_BAND = 20;
