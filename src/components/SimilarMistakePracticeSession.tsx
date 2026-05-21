@@ -5,9 +5,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   generateSimilarDrillSetAction,
   submitSimilarDrillSetAction,
-  type SimilarDrillSetItem,
-  type SimilarDrillSetResult,
 } from "@/actions/practice";
+import type {
+  SimilarDrillSetItem,
+  SimilarDrillSetResult,
+} from "@/actions/practice-types";
 import type { MistakeRow } from "@/actions/history";
 import { Button } from "@/components/ui/Button";
 import { ScoreSummary } from "@/components/ScoreSummary";

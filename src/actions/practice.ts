@@ -28,6 +28,10 @@ import {
 import { consumeAiQuota, quotaErrorMessage } from "@/lib/security/rateLimit";
 import { safeActionError } from "@/lib/errors";
 import { chatJson, OpenRouterError } from "@/lib/gemini/client";
+import type {
+  SimilarDrillSetItem,
+  SimilarDrillSetResult,
+} from "@/actions/practice-types";
 
 const partMap: Record<Exercise["type"], PartId> = {
   use_of_english_part1: "part1",
@@ -839,23 +843,6 @@ export async function generateSimilarMistakeDrillAction(input: {
   }
 }
 
-export interface SimilarDrillSetItem {
-  ref: { attemptId: string; itemKey: string };
-  drill: SimilarMistakeDrill;
-  source: {
-    exam: Exam;
-    part: string;
-    partName: string;
-    title: string;
-    prompt: string;
-    context?: string;
-    choices?: string[];
-    userAnswer: string;
-    correctAnswer: string;
-    questionNumber: number;
-  };
-}
-
 async function runWithConcurrency<T, R>(
   items: T[],
   limit: number,
@@ -1028,14 +1015,6 @@ export async function submitSimilarMistakeDrillAction(input: {
   } catch (error) {
     return { error: safeActionError(error, "Could not check similar practice. Try again.") };
   }
-}
-
-export interface SimilarDrillSetResult {
-  ref: { attemptId: string; itemKey: string };
-  accepted: boolean;
-  correctAnswer: string;
-  explanation: string;
-  progress: { attempted: number; correct: number; lastPracticedAt: string };
 }
 
 export async function submitSimilarDrillSetAction(input: {
