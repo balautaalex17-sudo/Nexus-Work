@@ -89,7 +89,53 @@ function stripJsonFence(text: string): string {
   return trimmed;
 }
 
+function extractFirstJsonObject(text: string): string | null {
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && start >= 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 export async function chatJson<T = unknown>(request: ChatRequest): Promise<T> {
   const text = await chatCompletion({ ...request, json: true });
-  return JSON.parse(stripJsonFence(text)) as T;
+  const stripped = stripJsonFence(text);
+  try {
+    return JSON.parse(stripped) as T;
+  } catch (parseError) {
+    const candidate = extractFirstJsonObject(stripped);
+    if (candidate) {
+      try {
+        return JSON.parse(candidate) as T;
+      } catch {}
+    }
+    console.error("[chatJson] failed to parse JSON response", {
+      error: parseError instanceof Error ? parseError.message : String(parseError),
+      snippet: stripped.slice(0, 600),
+    });
+    throw new OpenRouterError("The AI returned a malformed response. Try again.");
+  }
 }

@@ -781,24 +781,42 @@ export async function generateSimilarMistakeDrillAction(input: {
     const quota = await consumeAiQuota();
     if (!quota.allowed) return { error: quotaErrorMessage(quota) };
 
-    const raw = await chatJson<unknown>({
-      prompt: buildSimilarMistakePrompt(loaded.source),
-      temperature: 0.75,
-      maxTokens: 900,
-      signal: AbortSignal.timeout(22000),
-    });
-    const parsed = similarMistakeDrillSchema.safeParse(raw);
-    if (!parsed.success) {
-      console.error("[similarMistakeDrill] schema validation failed", {
-        issues: parsed.error.issues,
-        raw,
-      });
-      return { error: "The AI returned a malformed similar exercise. Try again." };
+    const prompt = buildSimilarMistakePrompt(loaded.source);
+    let lastIssue: unknown = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const raw = await chatJson<unknown>({
+          prompt,
+          temperature: attempt === 0 ? 0.75 : 0.5,
+          maxTokens: 900,
+          signal: AbortSignal.timeout(22000),
+        });
+        const parsed = similarMistakeDrillSchema.safeParse(raw);
+        if (!parsed.success) {
+          lastIssue = parsed.error.issues;
+          console.error("[similarMistakeDrill] schema validation failed", {
+            attempt,
+            issues: parsed.error.issues,
+            raw,
+          });
+          continue;
+        }
+        const normalized = normaliseSimilarDrill(parsed.data);
+        if ("error" in normalized) {
+          lastIssue = normalized.error;
+          continue;
+        }
+        return { drill: normalized };
+      } catch (innerError) {
+        if (innerError instanceof OpenRouterError) {
+          lastIssue = innerError.message;
+          continue;
+        }
+        throw innerError;
+      }
     }
-
-    const normalized = normaliseSimilarDrill(parsed.data);
-    if ("error" in normalized) return normalized;
-    return { drill: normalized };
+    console.error("[similarMistakeDrill] gave up after retry", { lastIssue });
+    return { error: "The AI returned a malformed similar exercise. Try again." };
   } catch (error) {
     if (error instanceof OpenRouterError) {
       return { error: safeActionError(error, "AI service unavailable. Try again.") };

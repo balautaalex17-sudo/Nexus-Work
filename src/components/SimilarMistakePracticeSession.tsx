@@ -133,6 +133,14 @@ export function SimilarMistakePracticeSession({
     void fetchDrill();
   }, [fetchDrill]);
 
+  const isLastItem = mistakes.length > 0 && index >= mistakes.length - 1;
+
+  const restartDrill = () => {
+    setIndex(0);
+    setState({ status: "idle" });
+    void fetchDrill();
+  };
+
   const submit = async () => {
     if (!current || state.status !== "ready") return;
     setSubmitting(true);
@@ -294,18 +302,19 @@ export function SimilarMistakePracticeSession({
             ) : null}
 
             <div className="mt-5 flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" onClick={fetchDrill} disabled={pending}>
-                Try another similar one
-              </Button>
               {state.result ? (
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setIndex((value) => (value + 1) % mistakes.length);
-                  }}
-                >
-                  Next mistake
-                </Button>
+                isLastItem ? (
+                  <Button type="button" onClick={restartDrill} disabled={pending}>
+                    Repeat — do another drill
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => setIndex((value) => value + 1)}
+                  >
+                    Next mistake
+                  </Button>
+                )
               ) : (
                 <Button type="button" disabled={pending || !state.answer.trim()} onClick={submit}>
                   {pending ? "Checking..." : "Check answer"}
