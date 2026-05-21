@@ -27,9 +27,9 @@ const tones: Record<Tone, string> = {
 };
 
 const spacings = {
-  sm: "py-16 md:py-20",
-  default: "py-20 md:py-28",
-  lg: "py-28 md:py-32",
+  sm: "py-6 md:py-8",
+  default: "py-10 md:py-14",
+  lg: "py-16 md:py-20",
 };
 
 export function Section({

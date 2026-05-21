@@ -13,8 +13,8 @@ export function PaperShell({ links, rightSlot, candidateEmail, children }: Paper
     <div className="min-h-screen flex flex-col">
       <NavPill links={links} rightSlot={rightSlot} candidateEmail={candidateEmail} />
       <main className="flex-1 w-full pt-8">{children}</main>
-      <footer className="mt-24 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto w-full max-w-7xl border-t border-dashed border-[#DED8CF] py-10 flex flex-wrap items-center justify-between gap-4 text-xs text-[#78786C]">
+      <footer className="mt-10 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-7xl border-t border-dashed border-[#DED8CF] py-6 flex flex-wrap items-center justify-between gap-4 text-xs text-[#78786C]">
           <span className="font-display italic text-base text-[#2C2C24]">Nexus Work</span>
           <span>Independent Cambridge-style exam practice for learning and review</span>
         </div>

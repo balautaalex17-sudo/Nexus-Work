@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   generateSimilarMistakeDrillAction,
   submitSimilarMistakeDrillAction,
@@ -97,7 +97,8 @@ export function SimilarMistakePracticeSession({
   const [localProgress, setLocalProgress] = useState<
     Record<string, { attempted: number; correct: number; lastPracticedAt?: string }>
   >({});
-  const [pending, startTransition] = useTransition();
+  const [submitting, setSubmitting] = useState(false);
+  const pending = state.status === "loading" || submitting;
 
   const current = mistakes[index] ?? null;
   const currentKey = current ? refKey(current) : "";
@@ -114,29 +115,28 @@ export function SimilarMistakePracticeSession({
     [localProgress, mistakes],
   );
 
-  const fetchDrill = useCallback(() => {
+  const fetchDrill = useCallback(async () => {
     if (!current) return;
     setState({ status: "loading" });
-    startTransition(async () => {
-      const result = await generateSimilarMistakeDrillAction({
-        attemptId: current.attemptId,
-        itemKey: current.itemKey,
-      });
-      if ("error" in result) {
-        setState({ status: "error", message: result.error });
-        return;
-      }
-      setState({ status: "ready", drill: result.drill, answer: "", result: null });
+    const result = await generateSimilarMistakeDrillAction({
+      attemptId: current.attemptId,
+      itemKey: current.itemKey,
     });
+    if ("error" in result) {
+      setState({ status: "error", message: result.error });
+      return;
+    }
+    setState({ status: "ready", drill: result.drill, answer: "", result: null });
   }, [current]);
 
   useEffect(() => {
-    fetchDrill();
+    void fetchDrill();
   }, [fetchDrill]);
 
-  const submit = () => {
+  const submit = async () => {
     if (!current || state.status !== "ready") return;
-    startTransition(async () => {
+    setSubmitting(true);
+    try {
       const result = await submitSimilarMistakeDrillAction({
         attemptId: current.attemptId,
         itemKey: current.itemKey,
@@ -149,7 +149,9 @@ export function SimilarMistakePracticeSession({
       }
       setLocalProgress((prev) => ({ ...prev, [currentKey]: result.progress }));
       setState({ ...state, result });
-    });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (mistakes.length === 0) {
