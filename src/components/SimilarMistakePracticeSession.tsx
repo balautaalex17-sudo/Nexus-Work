@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   generateSimilarDrillSetAction,
   submitSimilarDrillSetAction,
@@ -129,7 +129,10 @@ export function SimilarMistakePracticeSession({
     }
   };
 
+  const initializedRef = useRef(false);
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     void loadDrills();
   }, [loadDrills]);
 
