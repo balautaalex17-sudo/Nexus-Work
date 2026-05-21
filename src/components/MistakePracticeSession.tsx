@@ -251,7 +251,19 @@ export function MistakePracticeSession({
             style={{ width: `${progressPercent}%` }}
           />
         </div>
-        <div className="text-right">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Link href="/dashboard/mistakes?mode=drill">
+              <Button type="button" variant="ghost" size="sm">
+                &larr; Drill Sets
+              </Button>
+            </Link>
+            <Link href="/dashboard/mistakes">
+              <Button type="button" variant="ghost" size="sm">
+                &larr; Mistakes
+              </Button>
+            </Link>
+          </div>
           <div className="flex flex-wrap justify-end gap-2">
             <Link href="/practice">
               <Button type="button" variant="outline" size="sm">

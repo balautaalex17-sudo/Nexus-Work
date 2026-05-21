@@ -528,20 +528,34 @@ export function SimilarMistakePracticeSession({
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
-            <Link href="/dashboard/mistakes?mode=drill">
-              <Button type="button" variant="outline" size="sm">
-                Back to drill sets
-              </Button>
-            </Link>
-            <button
-              type="button"
-              className="submit-btn"
-              disabled={phase.kind !== "ready" || !allAnswered}
-              onClick={grade}
-            >
-              {phase.kind === "grading" ? "Checking..." : "Grade this drill"}
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Link href="/dashboard/mistakes?mode=drill">
+                <Button type="button" variant="ghost" size="sm">
+                  &larr; Drill Sets
+                </Button>
+              </Link>
+              <Link href="/dashboard/mistakes">
+                <Button type="button" variant="ghost" size="sm">
+                  &larr; Mistakes
+                </Button>
+              </Link>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Link href="/practice">
+                <Button type="button" variant="outline" size="sm">
+                  Practice something else
+                </Button>
+              </Link>
+              <button
+                type="button"
+                className="submit-btn"
+                disabled={phase.kind !== "ready" || !allAnswered}
+                onClick={grade}
+              >
+                {phase.kind === "grading" ? "Checking..." : "Grade this drill"}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

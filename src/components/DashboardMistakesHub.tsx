@@ -114,25 +114,6 @@ function HubTabs({
   );
 }
 
-function BackToHubLinks({
-  onDrillSets,
-  onMistakes,
-}: {
-  onDrillSets: () => void;
-  onMistakes: () => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      <Button type="button" variant="ghost" size="sm" onClick={onDrillSets}>
-        &larr; Back to Drill Sets
-      </Button>
-      <Button type="button" variant="ghost" size="sm" onClick={onMistakes}>
-        &larr; Back to Mistakes
-      </Button>
-    </div>
-  );
-}
-
 function LevelFilter({
   activeLevel,
   onChange,
@@ -272,33 +253,19 @@ export function DashboardMistakesHub({
   if (mode === "drill" && selectedDrill && selectedDrillItems.length > 0) {
     if (practiceMode === "similar") {
       return (
-        <>
-          <Section maxWidth="2xl" spacing="sm">
-            <BackToHubLinks
-              onDrillSets={() => navigate("drill", level)}
-              onMistakes={() => navigate("mistakes", level)}
-            />
-          </Section>
-          <SimilarMistakePracticeSession
-            mistakes={selectedDrillItems}
-            title={selectedDrill.name}
-            description={`${selectedDrillItems.length} selected mistake${
-              selectedDrillItems.length === 1 ? "" : "s"
-            } - fresh exercises from the same weak spots`}
-          />
-        </>
+        <SimilarMistakePracticeSession
+          mistakes={selectedDrillItems}
+          title={selectedDrill.name}
+          description={`${selectedDrillItems.length} selected mistake${
+            selectedDrillItems.length === 1 ? "" : "s"
+          } - fresh exercises from the same weak spots`}
+        />
       );
     }
 
     if (practiceMode === "exact") {
       return (
         <>
-          <Section maxWidth="2xl" spacing="sm">
-            <BackToHubLinks
-              onDrillSets={() => navigate("drill", level)}
-              onMistakes={() => navigate("mistakes", level)}
-            />
-          </Section>
           {unavailableCount > 0 ? (
             <Section maxWidth="2xl" spacing="sm">
               <Card shapeIndex={2} tone="sand" className="text-[#4A4A40]">
@@ -381,21 +348,13 @@ export function DashboardMistakesHub({
           ? `${level} mistakes`
           : "Selected mistakes";
     return (
-      <>
-        <Section maxWidth="2xl" spacing="sm">
-          <BackToHubLinks
-            onDrillSets={() => navigate("drill", level)}
-            onMistakes={() => navigate("mistakes", level)}
-          />
-        </Section>
-        <SimilarMistakePracticeSession
-          mistakes={groupDrillItems}
-          title={groupTitle}
-          description={`${groupDrillItems.length} mistake${
-            groupDrillItems.length === 1 ? "" : "s"
-          } from this group`}
-        />
-      </>
+      <SimilarMistakePracticeSession
+        mistakes={groupDrillItems}
+        title={groupTitle}
+        description={`${groupDrillItems.length} mistake${
+          groupDrillItems.length === 1 ? "" : "s"
+        } from this group`}
+      />
     );
   }
 
