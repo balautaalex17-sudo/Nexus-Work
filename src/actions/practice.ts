@@ -556,16 +556,72 @@ export async function generateContextualDrillAction(input: {
 
 const similarMistakeDrillSchema = z.object({
   kind: z.enum(["choice", "text"]),
-  skillLabel: z.string().min(2).max(120),
-  prompt: z.string().min(4).max(1200),
-  context: z.string().max(4000).optional(),
-  choices: z.array(z.string().min(1).max(800)).max(8).optional(),
-  correctAnswer: z.string().min(1).max(800),
-  acceptableAnswers: z.array(z.string().min(1).max(800)).max(10).optional(),
-  explanation: z.string().min(4).max(900),
+  skillLabel: z.string().min(1),
+  prompt: z.string().min(1),
+  context: z.string().optional(),
+  choices: z.array(z.string().min(1)).optional(),
+  correctAnswer: z.string().min(1),
+  acceptableAnswers: z.array(z.string().min(1)).optional(),
+  explanation: z.string().min(1),
 });
 
 export type SimilarMistakeDrill = z.infer<typeof similarMistakeDrillSchema>;
+
+function coerceSimilarDrillPayload(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const obj: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
+
+  const kindRaw = typeof obj.kind === "string" ? obj.kind.toLowerCase() : "";
+  if (kindRaw.includes("choice") || kindRaw.includes("multiple") || kindRaw === "mc" || kindRaw.includes("select")) {
+    obj.kind = "choice";
+  } else if (kindRaw.includes("text") || kindRaw.includes("open") || kindRaw.includes("free") || kindRaw.includes("write")) {
+    obj.kind = "text";
+  } else if (obj.kind !== "choice" && obj.kind !== "text") {
+    obj.kind = Array.isArray(obj.choices) && (obj.choices as unknown[]).length >= 2 ? "choice" : "text";
+  }
+
+  if (!obj.choices && Array.isArray(obj.options)) {
+    obj.choices = obj.options;
+  }
+  if (Array.isArray(obj.choices)) {
+    obj.choices = (obj.choices as unknown[])
+      .map((value) => (typeof value === "string" ? value : value == null ? "" : String(value)))
+      .filter((value) => value.trim().length > 0);
+  }
+
+  if (!obj.context) {
+    const fallbackContext = obj.text ?? obj.passage;
+    if (typeof fallbackContext === "string") obj.context = fallbackContext;
+  }
+
+  if (typeof obj.prompt !== "string") {
+    const altPrompt = obj.question ?? obj.stem ?? obj.task;
+    if (typeof altPrompt === "string") obj.prompt = altPrompt;
+    else if (obj.prompt != null) obj.prompt = String(obj.prompt);
+  }
+
+  if (typeof obj.correctAnswer !== "string") {
+    const altAnswer = obj.answer ?? obj.correct ?? obj.correct_answer ?? obj.solution;
+    if (typeof altAnswer === "string") obj.correctAnswer = altAnswer;
+    else if (typeof altAnswer === "number" || typeof altAnswer === "boolean") obj.correctAnswer = String(altAnswer);
+    else if (Array.isArray(altAnswer) && altAnswer.length > 0) obj.correctAnswer = String(altAnswer[0]);
+  }
+
+  if (typeof obj.skillLabel !== "string" || obj.skillLabel.trim().length === 0) {
+    const alt = obj.skill ?? obj.label;
+    obj.skillLabel = typeof alt === "string" && alt.trim() ? alt : "Similar practice";
+  }
+
+  if (typeof obj.explanation !== "string" || obj.explanation.trim().length === 0) {
+    const alt = obj.why ?? obj.rationale ?? obj.reasoning;
+    obj.explanation =
+      typeof alt === "string" && alt.trim()
+        ? alt
+        : "Check the correct answer above and review the original mistake's pattern.";
+  }
+
+  return obj;
+}
 
 const WRITING_CRITERIA_LABELS: Record<string, string> = {
   writing_content: "Content",
@@ -778,9 +834,25 @@ type LoadedSimilarSource = Awaited<ReturnType<typeof loadSimilarMistakeSource>> 
     : T
   : never;
 
+function fallbackDrillFromSource(source: LoadedSimilarSource["source"]): SimilarMistakeDrill {
+  const choices = source.choices ?? [];
+  const kind: "choice" | "text" = choices.length >= 2 ? "choice" : "text";
+  const correct = source.correctAnswer || (choices[0] ?? "");
+  return {
+    kind,
+    skillLabel: source.partName || "Similar practice",
+    prompt: source.prompt || "Practise this skill again.",
+    context: source.context,
+    choices: kind === "choice" ? choices : undefined,
+    correctAnswer: correct,
+    acceptableAnswers: [correct],
+    explanation: "Fresh similar exercise unavailable — retrying the original is still useful practice.",
+  };
+}
+
 async function generateOneSimilarDrill(
   loadedSource: LoadedSimilarSource,
-): Promise<{ drill: SimilarMistakeDrill } | { error: string }> {
+): Promise<{ drill: SimilarMistakeDrill }> {
   const prompt = buildSimilarMistakePrompt(loadedSource.source);
   let lastIssue: unknown = null;
   for (let attempt = 0; attempt < SIMILAR_DRILL_TEMPERATURES.length; attempt++) {
@@ -791,7 +863,8 @@ async function generateOneSimilarDrill(
         maxTokens: 900,
         signal: AbortSignal.timeout(22000),
       });
-      const parsed = similarMistakeDrillSchema.safeParse(raw);
+      const coerced = coerceSimilarDrillPayload(raw);
+      const parsed = similarMistakeDrillSchema.safeParse(coerced);
       if (!parsed.success) {
         lastIssue = parsed.error.issues;
         console.error("[similarMistakeDrill] schema validation failed", {
@@ -812,11 +885,12 @@ async function generateOneSimilarDrill(
         lastIssue = innerError.message;
         continue;
       }
-      throw innerError;
+      console.error("[similarMistakeDrill] unexpected error", innerError);
+      lastIssue = innerError instanceof Error ? innerError.message : String(innerError);
     }
   }
-  console.error("[similarMistakeDrill] gave up after retries", { lastIssue });
-  return { error: "The AI returned a malformed similar exercise. Try again." };
+  console.error("[similarMistakeDrill] falling back to original mistake", { lastIssue });
+  return { drill: fallbackDrillFromSource(loadedSource.source) };
 }
 
 export async function generateSimilarMistakeDrillAction(input: {
@@ -905,11 +979,6 @@ export async function generateSimilarDrillSetAction(input: {
     const drills: SimilarDrillSetItem[] = [];
     for (let i = 0; i < sources.length; i++) {
       const outcome = generated[i];
-      if ("error" in outcome) {
-        return {
-          error: "Some items couldn't be generated. Try again.",
-        };
-      }
       const src = sources[i];
       drills.push({
         ref: refs[i],
