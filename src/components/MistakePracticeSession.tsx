@@ -218,6 +218,7 @@ export function MistakePracticeSession({
               ) : null}
 
               {mistake.kind === "question" &&
+              (!mistake.choices || mistake.choices.length === 0) &&
               mistake.correctAnswer.trim().length > 0 &&
               mistake.correctAnswer.trim().split(/\s+/).length <= 3 ? (
                 <div className="mt-4 border-t border-[#DED8CF] pt-4">
