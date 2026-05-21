@@ -597,8 +597,9 @@ textarea {
 .paper-table th,
 .paper-table td {
   border-bottom: 1px solid var(--border);
-  padding: 14px 12px;
+  padding: 16px 12px;
   text-align: left;
+  vertical-align: middle;
 }
 .paper-table th {
   color: var(--muted-foreground);
