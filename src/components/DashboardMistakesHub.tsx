@@ -561,8 +561,8 @@ export function DashboardMistakesHub({
                         </td>
                         <td className="pr-8">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Link href={attemptHref(paper)}>
-                              <Button variant="outline" size="sm">
+                            <Link href={attemptHref(paper)} className="inline-flex">
+                              <Button variant="outline" size="sm" className="w-[150px]">
                                 {isWritingPart(paper.part) ? "Open feedback" : "Review paper"}
                               </Button>
                             </Link>
@@ -570,6 +570,7 @@ export function DashboardMistakesHub({
                               type="button"
                               variant="ghost"
                               size="sm"
+                              className="w-[130px] justify-start"
                               onClick={() => navigate("mistakes", paper.exam)}
                             >
                               View mistakes
