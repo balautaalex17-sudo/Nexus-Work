@@ -114,6 +114,25 @@ function HubTabs({
   );
 }
 
+function BackToHubLinks({
+  onDrillSets,
+  onMistakes,
+}: {
+  onDrillSets: () => void;
+  onMistakes: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" variant="ghost" size="sm" onClick={onDrillSets}>
+        &larr; Back to Drill Sets
+      </Button>
+      <Button type="button" variant="ghost" size="sm" onClick={onMistakes}>
+        &larr; Back to Mistakes
+      </Button>
+    </div>
+  );
+}
+
 function LevelFilter({
   activeLevel,
   onChange,
@@ -253,13 +272,21 @@ export function DashboardMistakesHub({
   if (mode === "drill" && selectedDrill && selectedDrillItems.length > 0) {
     if (practiceMode === "similar") {
       return (
-        <SimilarMistakePracticeSession
-          mistakes={selectedDrillItems}
-          title={selectedDrill.name}
-          description={`${selectedDrillItems.length} selected mistake${
-            selectedDrillItems.length === 1 ? "" : "s"
-          } - fresh exercises from the same weak spots`}
-        />
+        <>
+          <Section maxWidth="2xl" spacing="sm">
+            <BackToHubLinks
+              onDrillSets={() => navigate("drill", level)}
+              onMistakes={() => navigate("mistakes", level)}
+            />
+          </Section>
+          <SimilarMistakePracticeSession
+            mistakes={selectedDrillItems}
+            title={selectedDrill.name}
+            description={`${selectedDrillItems.length} selected mistake${
+              selectedDrillItems.length === 1 ? "" : "s"
+            } - fresh exercises from the same weak spots`}
+          />
+        </>
       );
     }
 
@@ -267,15 +294,10 @@ export function DashboardMistakesHub({
       return (
         <>
           <Section maxWidth="2xl" spacing="sm">
-            <p className="eyebrow mb-3">Redo originals</p>
-            <h1 className="mb-3 font-display text-4xl font-bold tracking-tight text-[#2C2C24] md:text-5xl">
-              {selectedDrill.name}
-            </h1>
-            <p className="lede">
-              This mode reuses the original missed questions from completed papers.
-            </p>
-            <HubTabs activeMode={mode} onChange={(nextMode) => navigate(nextMode, level)} />
-            <LevelFilter activeLevel={level} onChange={(nextLevel) => navigate(mode, nextLevel, setId, practiceMode)} />
+            <BackToHubLinks
+              onDrillSets={() => navigate("drill", level)}
+              onMistakes={() => navigate("mistakes", level)}
+            />
           </Section>
           {unavailableCount > 0 ? (
             <Section maxWidth="2xl" spacing="sm">
@@ -359,13 +381,21 @@ export function DashboardMistakesHub({
           ? `${level} mistakes`
           : "Selected mistakes";
     return (
-      <SimilarMistakePracticeSession
-        mistakes={groupDrillItems}
-        title={groupTitle}
-        description={`${groupDrillItems.length} mistake${
-          groupDrillItems.length === 1 ? "" : "s"
-        } from this group`}
-      />
+      <>
+        <Section maxWidth="2xl" spacing="sm">
+          <BackToHubLinks
+            onDrillSets={() => navigate("drill", level)}
+            onMistakes={() => navigate("mistakes", level)}
+          />
+        </Section>
+        <SimilarMistakePracticeSession
+          mistakes={groupDrillItems}
+          title={groupTitle}
+          description={`${groupDrillItems.length} mistake${
+            groupDrillItems.length === 1 ? "" : "s"
+          } from this group`}
+        />
+      </>
     );
   }
 
