@@ -19,10 +19,10 @@ export function AttemptDeleteButton({ attemptId, title }: AttemptDeleteButtonPro
     <div className="inline-flex flex-col items-start gap-1">
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         size="sm"
         disabled={pending}
-        className="border-[#A85448]/30 text-[#A85448] hover:bg-[#A85448]/10 hover:text-[#A85448]"
+        className="text-[#A85448] hover:bg-[#A85448]/10 hover:text-[#A85448]"
         onClick={() => {
           const ok = window.confirm(
             `Delete completed paper "${title}"? This removes the paper, its mistake log, and any drill-set questions from it.`,

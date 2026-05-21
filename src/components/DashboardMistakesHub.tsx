@@ -568,7 +568,7 @@ export function DashboardMistakesHub({
                             </Link>
                             <Button
                               type="button"
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
                               onClick={() => navigate("mistakes", paper.exam)}
                             >
