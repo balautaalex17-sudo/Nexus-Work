@@ -37,10 +37,43 @@ function refKey(mistake: MistakeRow) {
   return `${mistake.attemptId}::${mistake.itemKey}`;
 }
 
+const GAP_TOKEN_SPLIT_RE = /(\[gap\d*\]|\(gap\d*\)|\{gap\d*\}|<gap\d*>|\bgap\d+\b|_{3,})/gi;
+
+function isGapTokenSegment(segment: string) {
+  return /^(?:\[gap\d*\]|\(gap\d*\)|\{gap\d*\}|<gap\d*>|gap\d+|_{3,})$/i.test(segment.trim());
+}
+
 function renderPromptWithBlanks(text: string) {
-  const parts = text.split(/(\s_+\s|_{3,})/g);
+  const parts = text.split(GAP_TOKEN_SPLIT_RE);
   return parts.map((segment, index) => {
-    if (/^\s?_+\s?$/.test(segment)) {
+    if (isGapTokenSegment(segment)) {
+      return (
+        <span
+          key={index}
+          className="mx-1 inline-block min-w-[3.5em] border-b-2 border-[#2C2C24]/70 align-baseline"
+        >
+          &nbsp;
+        </span>
+      );
+    }
+    return <span key={index}>{segment}</span>;
+  });
+}
+
+function renderPassageWithBlanks(text: string, kind: "choice" | "text") {
+  const parts = text.split(GAP_TOKEN_SPLIT_RE);
+  return parts.map((segment, index) => {
+    if (isGapTokenSegment(segment)) {
+      if (kind === "choice") {
+        return (
+          <span
+            key={index}
+            className="mx-1 my-1 inline-flex items-center justify-center rounded-md border border-dashed border-[#5D7052]/50 bg-[#5D7052]/10 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[#5D7052]"
+          >
+            Missing paragraph
+          </span>
+        );
+      }
       return (
         <span
           key={index}
@@ -196,7 +229,9 @@ export function SimilarMistakePracticeSession({
               ) : null}
             </div>
             {state.drill.context ? (
-              <p className="passage-text mb-4 whitespace-pre-wrap text-base">{state.drill.context}</p>
+              <p className="passage-text mb-4 whitespace-pre-wrap text-base">
+                {renderPassageWithBlanks(state.drill.context, state.drill.kind)}
+              </p>
             ) : null}
             <h4 className="mb-4 font-display text-xl text-[#2C2C24]">
               {renderPromptWithBlanks(state.drill.prompt)}
