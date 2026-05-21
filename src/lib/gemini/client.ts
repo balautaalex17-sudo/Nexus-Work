@@ -1,6 +1,6 @@
 import "server-only";
 
-export const MODEL_NAME = "google/gemini-2.5-flash";
+export const MODEL_NAME = "google/gemini-3.5-flash";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 

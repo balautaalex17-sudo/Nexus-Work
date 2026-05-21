@@ -120,8 +120,17 @@ Mark on the Cambridge four-criteria rubric, awarding an integer band 0-5 for EAC
 - Language: range and accuracy of vocabulary and grammar at the target level.
 
 Then write:
-- "overall": one paragraph (50-90 words) summarising the strongest and weakest aspects in plain English.
-- "notes": exactly 2-3 short, specific, actionable bullets per criterion. Each bullet must reference the candidate's actual response (quote a phrase or describe a concrete moment). No generic praise.
+- "overall": one paragraph of 80-130 words summarising the strongest and weakest aspects in plain English. Mention the band ranges, the most consequential weakness, and ONE concrete thing the candidate should focus on next.
+- "notes": detailed, criterion-specific feedback. Aim for 4-6 substantive bullets per criterion. Each bullet must:
+    * QUOTE the candidate's wording in inline double-quotes (e.g. "...the situation was very bad...") or describe a concrete moment by paragraph/sentence position;
+    * EXPLAIN what's strong or weak about it in Cambridge rubric terms;
+    * SUGGEST a concrete rewrite, alternative phrase, or technique to apply — not a vague "be clearer" or "vary vocabulary".
+  Per-criterion guidance:
+    - content: per required brief point, state whether it's addressed, partially addressed, or missing, and quote the line that addresses it (or note where it should have appeared).
+    - communicativeAchievement: register slips (over/under-formal), tone for target reader, genre-convention misses, opening/closing effectiveness — quote at least two specific phrases.
+    - organisation: paragraph division, topic sentences, cohesive devices used or missing, signposting between paragraphs — quote a linker or transition that worked, and one that didn't.
+    - language: grammar errors (quote the exact phrase + give correct form), collocation/word-choice issues (quote + alternative), range-of-structures notes (e.g. all simple past — could vary with present perfect for "...").
+  No generic praise; every bullet must be tied to the actual response. Avoid lists of single words — write full sentences with the quote embedded.
 
 Reply with strict JSON only:
 {
@@ -166,7 +175,8 @@ export async function gradeWriting(input: {
 
     const raw = await chatJson<unknown>({
       prompt,
-      temperature: 0.15,
+      temperature: 0.2,
+      maxTokens: 4096,
       signal: feedbackSignal(),
     });
 
