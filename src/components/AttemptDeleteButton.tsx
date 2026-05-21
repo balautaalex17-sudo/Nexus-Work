@@ -16,13 +16,13 @@ export function AttemptDeleteButton({ attemptId, title }: AttemptDeleteButtonPro
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="inline-flex flex-col items-start gap-1">
       <Button
         type="button"
-        variant="ghost"
+        variant="outline"
         size="sm"
         disabled={pending}
-        className="text-[#A85448] hover:bg-[#A85448]/10 hover:text-[#A85448]"
+        className="border-[#A85448]/30 text-[#A85448] hover:bg-[#A85448]/10 hover:text-[#A85448]"
         onClick={() => {
           const ok = window.confirm(
             `Delete completed paper "${title}"? This removes the paper, its mistake log, and any drill-set questions from it.`,
@@ -42,7 +42,7 @@ export function AttemptDeleteButton({ attemptId, title }: AttemptDeleteButtonPro
       >
         {pending ? "Deleting..." : "Delete"}
       </Button>
-      {error ? <span className="max-w-48 text-right text-xs font-bold text-[#A85448]">{error}</span> : null}
+      {error ? <span className="max-w-48 text-xs font-bold text-[#A85448]">{error}</span> : null}
     </div>
   );
 }

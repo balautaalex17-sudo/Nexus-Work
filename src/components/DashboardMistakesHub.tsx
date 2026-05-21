@@ -533,8 +533,7 @@ export function DashboardMistakesHub({
                       <th>Part</th>
                       <th>Title</th>
                       <th>Score</th>
-                      <th>Actions</th>
-                      <th className="pr-8 text-right">Delete</th>
+                      <th className="pr-8">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -560,8 +559,8 @@ export function DashboardMistakesHub({
                             {scorePercent(paper.score, paper.max_score)}%
                           </span>
                         </td>
-                        <td>
-                          <div className="flex flex-wrap gap-2">
+                        <td className="pr-8">
+                          <div className="flex flex-wrap items-center gap-2">
                             <Link href={attemptHref(paper)}>
                               <Button variant="outline" size="sm">
                                 {isWritingPart(paper.part) ? "Open feedback" : "Review paper"}
@@ -569,16 +568,14 @@ export function DashboardMistakesHub({
                             </Link>
                             <Button
                               type="button"
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => navigate("mistakes", paper.exam)}
                             >
                               View mistakes
                             </Button>
+                            <AttemptDeleteButton attemptId={paper.id} title={paper.title} />
                           </div>
-                        </td>
-                        <td className="pr-8 text-right">
-                          <AttemptDeleteButton attemptId={paper.id} title={paper.title} />
                         </td>
                       </tr>
                     ))}
