@@ -276,7 +276,7 @@ export function MistakeLibrary({ mistakes, drillSets }: MistakeLibraryProps) {
 
       {groups.map((group, groupIndex) => {
         const groupKey = `${group.exam}-${group.part}`;
-        const isOpen = openGroupKey === null ? groupIndex === 0 : openGroupKey === groupKey;
+        const isOpen = openGroupKey === groupKey;
         const activeCount = group.rows.filter((row) => !row.resolved).length;
         const resolvedCount = group.rows.length - activeCount;
         const drillableCount = group.rows.filter(canDrill).length;
@@ -317,6 +317,13 @@ export function MistakeLibrary({ mistakes, drillSets }: MistakeLibraryProps) {
               <>
                 <div className="border-y border-dashed border-[#DED8CF] px-6 pb-6">
                   <div className="mt-4 flex flex-wrap gap-2">
+                    <Link
+                      href={`/dashboard/mistakes?mode=drill&level=${group.exam}&part=${group.part}&practice=similar`}
+                    >
+                      <Button type="button" size="sm">
+                        Practice similar for this part
+                      </Button>
+                    </Link>
                     <Button
                       type="button"
                       variant="outline"
@@ -393,6 +400,12 @@ export function MistakeLibrary({ mistakes, drillSets }: MistakeLibraryProps) {
                             {isWritingFeedback ? (
                               <span className="rounded-full bg-[#183F73]/10 px-3 py-1 text-xs font-bold text-[#183F73]">
                                 Writing feedback
+                              </span>
+                            ) : null}
+                            {mistake.similarPractice?.attempted ? (
+                              <span className="rounded-full bg-[#5D7052]/10 px-3 py-1 text-xs font-bold text-[#5D7052]">
+                                {mistake.similarPractice.attempted} similar -{" "}
+                                {mistake.similarPractice.correct} correct
                               </span>
                             ) : null}
                           </div>

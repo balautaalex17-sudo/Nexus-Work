@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "@/components/ui/Logo";
 
@@ -26,12 +26,24 @@ export function NavPill({
   rightSlot,
   candidateEmail,
 }: NavPillProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [optimisticHref, setOptimisticHref] = useState<string | null>(null);
   const pathname = usePathname();
-  const activeHref =
+  const routeActiveHref =
     links
       .filter((l) => pathname === l.href || pathname?.startsWith(l.href + "/"))
       .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
+  const activeHref = optimisticHref ?? routeActiveHref;
+
+  useEffect(() => {
+    setOptimisticHref(null);
+  }, [pathname]);
+
+  useEffect(() => {
+    for (const link of links) router.prefetch(link.href);
+    if (brandHref) router.prefetch(brandHref);
+  }, [brandHref, links, router]);
 
   return (
     <div className="sticky top-4 z-40 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -56,12 +68,16 @@ export function NavPill({
               <Link
                 key={l.href}
                 href={l.href}
+                prefetch
                 className={cn(
                   "px-4 py-2 rounded-full text-sm font-bold transition-all duration-200 border-b-0",
                   active
                     ? "bg-[#5D7052]/10 text-[#5D7052]"
                     : "text-[#2C2C24]/80 hover:text-[#5D7052] hover:bg-[#5D7052]/5",
                 )}
+                onClick={() => setOptimisticHref(l.href)}
+                onMouseEnter={() => router.prefetch(l.href)}
+                onFocus={() => router.prefetch(l.href)}
               >
                 {l.label}
               </Link>
@@ -100,16 +116,30 @@ export function NavPill({
 
       {open ? (
         <div className="md:hidden mt-3 rounded-[2rem] bg-white/90 backdrop-blur-md border border-[#DED8CF]/60 shadow-soft p-6 flex flex-col gap-2">
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="px-4 py-3 rounded-full text-base font-bold text-[#2C2C24] hover:bg-[#5D7052]/10 hover:text-[#5D7052] transition-colors border-b-0"
-              onClick={() => setOpen(false)}
-            >
-              {l.label}
-            </Link>
-          ))}
+          {links.map((l) => {
+            const active = activeHref === l.href;
+            return (
+              <Link
+                key={l.href}
+                href={l.href}
+                prefetch
+                className={cn(
+                  "px-4 py-3 rounded-full text-base font-bold transition-colors border-b-0",
+                  active
+                    ? "bg-[#5D7052]/10 text-[#5D7052]"
+                    : "text-[#2C2C24] hover:bg-[#5D7052]/10 hover:text-[#5D7052]",
+                )}
+                onClick={() => {
+                  setOptimisticHref(l.href);
+                  setOpen(false);
+                }}
+                onMouseEnter={() => router.prefetch(l.href)}
+                onFocus={() => router.prefetch(l.href)}
+              >
+                {l.label}
+              </Link>
+            );
+          })}
           {rightSlot ? (
             <div className="mt-2 pt-3 border-t border-dashed border-[#DED8CF] flex items-center justify-between gap-3">
               {candidateEmail ? (

@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { submitAttemptAction } from "@/actions/practice";
 import { submitWritingAction } from "@/actions/writing";
 import { ExerciseRenderer } from "@/components/ExerciseRenderer";
+import { Button } from "@/components/ui/Button";
 import type { Exercise } from "@/lib/exercises/types";
 
 interface PracticeSessionProps {
@@ -43,6 +45,13 @@ export function PracticeSession({ exercise }: PracticeSessionProps) {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto mb-4 flex w-full max-w-3xl justify-end">
+        <Link href="/practice">
+          <Button type="button" variant="ghost" size="sm">
+            Practice something else
+          </Button>
+        </Link>
+      </div>
       {pending ? (
         <div className="mx-auto mb-4 flex w-full max-w-3xl items-center gap-3 rounded-full border border-[#DED8CF]/60 bg-white/80 px-6 py-3 text-sm text-[#78786C] shadow-soft backdrop-blur-md">
           <span className="h-2 w-2 animate-pulse rounded-full bg-[#5D7052]" />

@@ -40,6 +40,9 @@ export default async function HistoryReviewPage({ params }: HistoryPageProps) {
           <Link href={practiceHref}>
             <Button size="sm">Practice another {partLabel}</Button>
           </Link>
+          <Link href="/practice">
+            <Button variant="outline" size="sm">Practice something else</Button>
+          </Link>
         </div>
       </div>
       <ReviewRenderer

@@ -17,7 +17,7 @@ import {
   PART_NAMES,
   questionNumberForKey,
 } from "@/lib/exercises/itemDetails";
-import { normalizeMistakeLog } from "@/lib/exercises/mistakeLog";
+import { normalizeMistakeLog, type SimilarPracticeStats } from "@/lib/exercises/mistakeLog";
 import {
   writingFeedbackSchema,
   type WritingFeedback,
@@ -74,6 +74,7 @@ export interface MistakeRow {
   timesMissed?: number;
   drillable?: boolean;
   kind?: "question" | "writing_feedback";
+  similarPractice?: SimilarPracticeStats;
 }
 
 export interface DrillSetItem {
@@ -207,6 +208,7 @@ function writingMistakeRowsFromAttempt(row: HistoryDataRow): MistakeRow[] {
   if (!feedback || !feedback.accepted) return [];
 
   const hidden = dismissedKeys(row.dismissed_mistakes);
+  const logByKey = new Map(normalizeMistakeLog(row.mistake_log).map((entry) => [entry.itemKey, entry]));
   const userAnswers = (row.user_answers ?? {}) as Record<string, unknown>;
   const essayText = typeof userAnswers.essay === "string" ? userAnswers.essay : "";
   const genreLabel = writingGenreLabel(row.genre);
@@ -252,6 +254,7 @@ function writingMistakeRowsFromAttempt(row: HistoryDataRow): MistakeRow[] {
         timesMissed: 1,
         drillable: false,
         kind: "writing_feedback",
+        similarPractice: logByKey.get(criterion.itemKey)?.similarPractice,
       } satisfies MistakeRow,
     ];
   });
@@ -340,6 +343,7 @@ function loggedMistakeRowsFromAttempt(row: HistoryDataRow): MistakeRow[] {
         firstAnswer: entry.firstAnswer,
         lastMissedAt: entry.lastMissedAt,
         timesMissed: entry.timesMissed,
+        similarPractice: entry.similarPractice,
       }),
     )
     .filter((item): item is MistakeRow => Boolean(item));

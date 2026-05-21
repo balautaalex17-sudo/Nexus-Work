@@ -73,9 +73,14 @@ export default async function WritingAttemptPage({ params }: WritingAttemptPageP
             </span>{" "}
             - {wordCount} words written (target {writingWordTarget(exercise.exam, part)}).
           </p>
-          <Link href={practiceHref}>
-            <Button variant="outline">Practice another {spec.selectorLabel}</Button>
-          </Link>
+          <div className="flex flex-wrap gap-2 md:justify-end">
+            <Link href={practiceHref}>
+              <Button variant="outline">Practice another {spec.selectorLabel}</Button>
+            </Link>
+            <Link href="/practice">
+              <Button>Practice something else</Button>
+            </Link>
+          </div>
         </div>
       </Section>
 

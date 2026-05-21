@@ -13,7 +13,8 @@ import {
   type PartId,
 } from "@/lib/exercises/types";
 import { scoreExercise, totalsFromPerItem } from "@/lib/exercises/validators";
-import { updateMistakeLog } from "@/lib/exercises/mistakeLog";
+import { normalizeMistakeLog, updateMistakeLog, updateSimilarPracticeLog } from "@/lib/exercises/mistakeLog";
+import { describeExerciseItem, PART_NAMES } from "@/lib/exercises/itemDetails";
 import {
   applyAcceptedAnswers,
   collectVerifyItems,
@@ -546,5 +547,332 @@ export async function generateContextualDrillAction(input: {
       return { error: safeActionError(error, "AI service unavailable. Try again.") };
     }
     return { error: safeActionError(error, "Could not generate drill. Try again.") };
+  }
+}
+
+const similarMistakeDrillSchema = z.object({
+  kind: z.enum(["choice", "text"]),
+  skillLabel: z.string().min(2).max(120),
+  prompt: z.string().min(4).max(1200),
+  context: z.string().max(4000).optional(),
+  choices: z.array(z.string().min(1).max(800)).max(8).optional(),
+  correctAnswer: z.string().min(1).max(800),
+  acceptableAnswers: z.array(z.string().min(1).max(800)).max(10).optional(),
+  explanation: z.string().min(4).max(900),
+});
+
+export type SimilarMistakeDrill = z.infer<typeof similarMistakeDrillSchema>;
+
+const WRITING_CRITERIA_LABELS: Record<string, string> = {
+  writing_content: "Content",
+  writing_communicative_achievement: "Communicative achievement",
+  writing_organisation: "Organisation",
+  writing_language: "Language",
+};
+
+function normalizeAnswer(value: string) {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function normaliseSimilarDrill(drill: SimilarMistakeDrill): SimilarMistakeDrill | { error: string } {
+  if (drill.kind === "choice") {
+    const choices = drill.choices ?? [];
+    if (choices.length < 2) return { error: "The AI returned a malformed similar exercise. Try again." };
+    const normalizedAnswer = normalizeAnswer(drill.correctAnswer);
+    let answerIndex = choices.findIndex((choice) => normalizeAnswer(choice) === normalizedAnswer);
+    if (answerIndex < 0) {
+      const letterMatch = /^([a-h])(?:[\s\).:\-]|$)/i.exec(drill.correctAnswer.trim());
+      if (letterMatch) {
+        const idx = letterMatch[1].toLowerCase().charCodeAt(0) - "a".charCodeAt(0);
+        if (idx >= 0 && idx < choices.length) answerIndex = idx;
+      }
+    }
+    if (answerIndex < 0) {
+      answerIndex = choices.findIndex((choice) => {
+        const stripped = normalizeAnswer(choice.replace(/^[a-h][\s\).:\-]+/i, ""));
+        return stripped === normalizedAnswer;
+      });
+    }
+    if (answerIndex < 0) {
+      answerIndex = choices.findIndex((choice) => {
+        const a = normalizeAnswer(choice);
+        return a.includes(normalizedAnswer) || normalizedAnswer.includes(a);
+      });
+    }
+    if (answerIndex < 0) {
+      return { error: "The AI did not include the correct answer in the options. Try again." };
+    }
+    return {
+      ...drill,
+      choices,
+      correctAnswer: choices[answerIndex],
+      acceptableAnswers: [choices[answerIndex]],
+    };
+  }
+
+  const acceptableAnswers = Array.from(
+    new Set([drill.correctAnswer, ...(drill.acceptableAnswers ?? [])].map((answer) => answer.trim()).filter(Boolean)),
+  );
+  return { ...drill, choices: undefined, acceptableAnswers };
+}
+
+function partInstruction(part: string) {
+  switch (part) {
+    case "part1":
+      return "Make a one-item multiple-choice cloze. Use a new sentence or very short paragraph. Test the same word, collocation, phrasal verb, register, or nuance. Return kind=\"choice\" with exactly 4 options.";
+    case "part2":
+      return "Make a one-item open cloze. Use a new sentence or very short paragraph with one blank. Test the same grammar/function word pattern. Return kind=\"text\" and concise acceptableAnswers.";
+    case "part3":
+      return "Make a one-item word formation task. Use the same base word or word-family pattern in a new sentence. Return kind=\"text\".";
+    case "part4":
+      return "Make a one-item key word transformation. Use the same key word or transformation pattern in a new sentence pair. Return kind=\"text\".";
+    case "part5":
+      return "Make a short reading extract of 80-130 words and one multiple-choice question testing the same reading move: detail, inference, tone, implication, or vocabulary in context. Return kind=\"choice\" with exactly 4 options.";
+    case "part6":
+      return "Make a one-gap gapped-text mini task. Provide a short text with one missing paragraph and 4 paragraph options. Return kind=\"choice\".";
+    case "part7":
+      return "Make a mini multiple-matching task. Provide 3-4 short text snippets and one statement to match. Return kind=\"choice\".";
+    case "writing_part1":
+    case "writing_part2":
+      return "Make a focused writing micro-practice task for the weak criterion. Prefer a multiple-choice revision, register, cohesion, or content-coverage decision. Do not ask for a full essay. Return kind=\"choice\".";
+    default:
+      return "Make one short Cambridge-style mini exercise testing the same skill in a new context.";
+  }
+}
+
+function buildSimilarMistakePrompt(source: {
+  exam: Exam;
+  part: string;
+  partName: string;
+  title: string;
+  prompt: string;
+  context?: string;
+  choices?: string[];
+  userAnswer: string;
+  correctAnswer: string;
+  kind: "question" | "writing_feedback";
+}) {
+  return [
+    "You are an expert Cambridge English exam writer.",
+    "Generate ONE fresh mini practice exercise based on the learner's mistake.",
+    "The exercise must test the same underlying skill, but it must NOT copy the original question, passage, sentence, or answer context.",
+    `Level: ${source.exam}`,
+    `Part: ${source.part} (${source.partName})`,
+    `Original paper: ${source.title}`,
+    `Original prompt: ${source.prompt}`,
+    source.context ? `Original context:\n${source.context}` : null,
+    source.choices?.length ? `Original choices:\n${source.choices.join("\n")}` : null,
+    `Learner answer: ${source.userAnswer || "(blank)"}`,
+    `Expected answer or target: ${source.correctAnswer || "(criterion improvement)"}`,
+    `Generation rule: ${partInstruction(source.part)}`,
+    "Keep it quick: one item only.",
+    "For choice tasks, include 4 options and set correctAnswer to the exact correct option text.",
+    "For text tasks, provide correctAnswer plus acceptableAnswers for exact accepted variants.",
+    "Return strictly valid JSON with this shape:",
+    `{"kind":"choice","skillLabel":"...","prompt":"...","context":"...","choices":["...","...","...","..."],"correctAnswer":"...","acceptableAnswers":["..."],"explanation":"..."}`,
+    "Do not wrap in markdown fences.",
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
+}
+
+async function loadSimilarMistakeSource(input: { attemptId: string; itemKey: string }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Unauthorized" as const };
+
+  const { data, error } = await supabase
+    .from("history")
+    .select(
+      "id, exam, part, title, topic, exercise, user_answers, dismissed_mistakes, mistake_log, writing_feedback, genre",
+    )
+    .eq("id", input.attemptId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error || !data) return { error: "Mistake not found." as const };
+  if (dismissedKeys(data.dismissed_mistakes).has(input.itemKey)) {
+    return { error: "That mistake was deleted." as const };
+  }
+
+  const row = data as Record<string, unknown> & {
+    id: string;
+    exam: Exam;
+    part: string;
+    title: string;
+    mistake_log: unknown;
+  };
+  const itemKey = input.itemKey;
+  const partName = PART_NAMES[row.part] ?? row.part;
+
+  if (isWritingPart(row.part) && itemKey in WRITING_CRITERIA_LABELS) {
+    const userAnswers = (row.user_answers ?? {}) as Record<string, unknown>;
+    const essay = typeof userAnswers.essay === "string" ? userAnswers.essay : "";
+    const feedback = (row.writing_feedback ?? {}) as Record<string, unknown>;
+    const notesRecord =
+      typeof feedback.notes === "object" && feedback.notes !== null
+        ? (feedback.notes as Record<string, unknown>)
+        : {};
+    const noteKey = itemKey.replace("writing_", "");
+    const notes = Array.isArray(notesRecord[noteKey])
+      ? (notesRecord[noteKey] as unknown[]).map(String).join(" ")
+      : "";
+
+    return {
+      supabase,
+      userId: user.id,
+      row,
+      source: {
+        exam: row.exam,
+        part: row.part,
+        partName,
+        title: row.title,
+        prompt: `${WRITING_CRITERIA_LABELS[itemKey]} feedback`,
+        context: [notes ? `Marker notes: ${notes}` : null, essay ? `Learner response:\n${essay}` : null]
+          .filter((item): item is string => Boolean(item))
+          .join("\n\n"),
+        userAnswer: "",
+        correctAnswer: "A stronger Cambridge writing criterion response",
+        kind: "writing_feedback" as const,
+      },
+    };
+  }
+
+  const exercise = exerciseSchema.parse(row.exercise);
+  const details = describeExerciseItem(exercise, itemKey);
+  if (!details) return { error: "Mistake not found." as const };
+
+  const userAnswers = (row.user_answers ?? {}) as Record<string, string>;
+  const logged = normalizeMistakeLog(row.mistake_log).find((entry) => entry.itemKey === itemKey);
+
+  return {
+    supabase,
+    userId: user.id,
+    row,
+    source: {
+      exam: row.exam,
+      part: row.part,
+      partName,
+      title: row.title,
+      prompt: details.prompt,
+      context: details.context,
+      choices: details.choices,
+      userAnswer: logged?.lastAnswer ?? userAnswers[itemKey] ?? "",
+      correctAnswer: logged?.correctAnswer ?? details.correctAnswer,
+      kind: "question" as const,
+    },
+  };
+}
+
+export async function generateSimilarMistakeDrillAction(input: {
+  attemptId: string;
+  itemKey: string;
+}): Promise<{ drill: SimilarMistakeDrill } | { error: string }> {
+  const attemptId = String(input.attemptId ?? "").trim();
+  const itemKey = String(input.itemKey ?? "").trim();
+  if (!attemptId || !itemKey) return { error: "Mistake not found." };
+
+  try {
+    const loaded = await loadSimilarMistakeSource({ attemptId, itemKey });
+    if ("error" in loaded) return { error: loaded.error ?? "Mistake not found." };
+
+    const quota = await consumeAiQuota();
+    if (!quota.allowed) return { error: quotaErrorMessage(quota) };
+
+    const raw = await chatJson<unknown>({
+      prompt: buildSimilarMistakePrompt(loaded.source),
+      temperature: 0.75,
+      maxTokens: 900,
+      signal: AbortSignal.timeout(22000),
+    });
+    const parsed = similarMistakeDrillSchema.safeParse(raw);
+    if (!parsed.success) {
+      console.error("[similarMistakeDrill] schema validation failed", {
+        issues: parsed.error.issues,
+        raw,
+      });
+      return { error: "The AI returned a malformed similar exercise. Try again." };
+    }
+
+    const normalized = normaliseSimilarDrill(parsed.data);
+    if ("error" in normalized) return normalized;
+    return { drill: normalized };
+  } catch (error) {
+    if (error instanceof OpenRouterError) {
+      return { error: safeActionError(error, "AI service unavailable. Try again.") };
+    }
+    return { error: safeActionError(error, "Could not generate similar practice. Try again.") };
+  }
+}
+
+export async function submitSimilarMistakeDrillAction(input: {
+  attemptId: string;
+  itemKey: string;
+  drill: SimilarMistakeDrill;
+  answer: string;
+}): Promise<
+  | {
+      accepted: boolean;
+      correctAnswer: string;
+      explanation: string;
+      progress: { attempted: number; correct: number; lastPracticedAt: string };
+    }
+  | { error: string }
+> {
+  const attemptId = String(input.attemptId ?? "").trim();
+  const itemKey = String(input.itemKey ?? "").trim();
+  const answer = String(input.answer ?? "").trim();
+  const parsedDrill = similarMistakeDrillSchema.safeParse(input.drill);
+  if (!attemptId || !itemKey || !parsedDrill.success) return { error: "Could not check this drill." };
+  if (!answer) return { error: "Add an answer first." };
+
+  const drill = parsedDrill.data;
+  const acceptedAnswers = [drill.correctAnswer, ...(drill.acceptableAnswers ?? [])];
+  const accepted = acceptedAnswers.some((candidate) => normalizeAnswer(candidate) === normalizeAnswer(answer));
+
+  try {
+    const loaded = await loadSimilarMistakeSource({ attemptId, itemKey });
+    if ("error" in loaded) return { error: loaded.error ?? "Mistake not found." };
+
+    const now = new Date().toISOString();
+    const nextLog = updateSimilarPracticeLog({
+      currentLog: loaded.row.mistake_log,
+      itemKey,
+      firstAnswer: loaded.source.userAnswer,
+      correctAnswer: loaded.source.correctAnswer,
+      accepted,
+      now,
+    });
+    const progress = nextLog.find((entry) => entry.itemKey === itemKey)?.similarPractice;
+
+    const { error: updateError } = await loaded.supabase
+      .from("history")
+      .update({ mistake_log: nextLog })
+      .eq("id", attemptId)
+      .eq("user_id", loaded.userId);
+
+    if (updateError || !progress) {
+      return { error: safeActionError(updateError, "Could not save similar practice. Try again.") };
+    }
+
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/mistakes");
+    revalidatePath(`/dashboard/history/${attemptId}`);
+    revalidatePath(`/dashboard/writing/${attemptId}`);
+
+    return {
+      accepted,
+      correctAnswer: drill.correctAnswer,
+      explanation: drill.explanation,
+      progress: {
+        attempted: progress.attempted,
+        correct: progress.correct,
+        lastPracticedAt: progress.lastPracticedAt ?? now,
+      },
+    };
+  } catch (error) {
+    return { error: safeActionError(error, "Could not check similar practice. Try again.") };
   }
 }

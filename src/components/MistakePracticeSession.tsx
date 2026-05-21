@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { submitMistakePracticeAction } from "@/actions/practice";
@@ -8,6 +9,7 @@ import { ScoreSummary } from "@/components/ScoreSummary";
 import { DrillSourceText } from "@/components/DrillSourceText";
 import { hasGapTokens } from "@/components/exercises/shared";
 import { MiniDrillPanel } from "@/components/MiniDrillPanel";
+import { Button } from "@/components/ui/Button";
 
 interface MistakePracticeSessionProps {
   mistakes: MistakeRow[];
@@ -249,9 +251,16 @@ export function MistakePracticeSession({
           />
         </div>
         <div className="text-right">
-          <button type="button" className="submit-btn" disabled={pending} onClick={submit}>
-            {pending ? "Checking..." : "Grade this drill"}
-          </button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Link href="/practice">
+              <Button type="button" variant="outline" size="sm">
+                Practice something else
+              </Button>
+            </Link>
+            <button type="button" className="submit-btn" disabled={pending} onClick={submit}>
+              {pending ? "Checking..." : "Grade this drill"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

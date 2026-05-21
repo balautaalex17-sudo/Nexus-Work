@@ -12,13 +12,18 @@ export default async function MistakePracticePage({ searchParams }: MistakePract
   const params = (await searchParams) ?? {};
   const next = new URLSearchParams();
   const exam = firstParam(params.exam);
+  const part = firstParam(params.part);
+  const practice = firstParam(params.practice);
   const setId = firstParam(params.setId);
 
   if (exam) next.set("level", exam);
+  if (part) next.set("part", part);
+  if (practice) next.set("practice", practice);
   if (setId) {
     next.set("mode", "drill");
     next.set("setId", setId);
   }
+  if (practice === "similar") next.set("mode", "drill");
 
   const query = next.toString();
   redirect(`/dashboard/mistakes${query ? `?${query}` : ""}`);
