@@ -74,6 +74,7 @@ function partLabel(exam: Exam, part: string) {
 
 export function MistakeLibrary({ mistakes, drillSets }: MistakeLibraryProps) {
   const router = useRouter();
+  const [openGroupKey, setOpenGroupKey] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [setName, setSetName] = useState("");
   const [targetSetId, setTargetSetId] = useState("new");
@@ -274,20 +275,16 @@ export function MistakeLibrary({ mistakes, drillSets }: MistakeLibraryProps) {
       </div>
 
       {groups.map((group, groupIndex) => {
+        const groupKey = `${group.exam}-${group.part}`;
+        const isOpen = openGroupKey === null ? groupIndex === 0 : openGroupKey === groupKey;
         const activeCount = group.rows.filter((row) => !row.resolved).length;
         const resolvedCount = group.rows.length - activeCount;
         const drillableCount = group.rows.filter(canDrill).length;
         const papers = uniquePapers(group.rows);
 
         return (
-          <Card
-            key={`${group.exam}-${group.part}`}
-            id={`${group.exam}-${group.part}`}
-            shapeIndex={groupIndex}
-            lift
-            className="p-0"
-          >
-            <div className="border-b border-dashed border-[#DED8CF] p-6">
+          <Card key={groupKey} id={groupKey} shapeIndex={groupIndex} lift className="p-0">
+            <div className="p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="eyebrow mb-2">
@@ -299,135 +296,154 @@ export function MistakeLibrary({ mistakes, drillSets }: MistakeLibraryProps) {
                     {papers.length} completed paper{papers.length === 1 ? "" : "s"}.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="status-fail">{activeCount} active</span>
                   <span className="status-pass">{resolvedCount} resolved</span>
                 </div>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant={isOpen ? "ghost" : "outline"}
                   size="sm"
-                  disabled={drillableCount === 0}
-                  onClick={() => selectGroup(group.rows)}
+                  onClick={() => setOpenGroupKey(isOpen ? null : groupKey)}
                 >
-                  {drillableCount === 0 ? "Tracked only" : "Select part"}
-                </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => clearGroup(group.rows)}>
-                  Clear part
+                  {isOpen ? "Collapse part" : "Expand part"}
                 </Button>
               </div>
-              <details className="mt-4 rounded-2xl border border-[#DED8CF] bg-[#FFFCF4]/80 p-4">
-                <summary className="cursor-pointer font-bold text-[#183F73]">
-                  View completed papers for this part
-                </summary>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {papers.map((paper) => (
-                    <div
-                      key={paper.attemptId}
-                      className="rounded-2xl border border-[#DED8CF]/80 bg-white/70 p-4"
+            </div>
+
+            {isOpen ? (
+              <>
+                <div className="border-y border-dashed border-[#DED8CF] px-6 pb-6">
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={drillableCount === 0}
+                      onClick={() => selectGroup(group.rows)}
                     >
-                      <div className="mb-2 flex flex-wrap gap-2">
-                        <span className="rounded-full bg-[#E6DCCD] px-3 py-1 text-xs font-bold text-[#4A4A40]">
-                          {paper.exam}
-                        </span>
-                        <span className="rounded-full bg-[#5D7052]/10 px-3 py-1 text-xs font-bold text-[#5D7052]">
-                          {formatDate(paper.created_at)}
-                        </span>
-                      </div>
-                      <p className="font-display text-xl text-[#2C2C24]">{paper.title}</p>
-                      <Link
-                        href={attemptHref(paper)}
-                        className="mt-2 inline-flex font-bold text-[#183F73] border-b-0 hover:border-b"
-                      >
-                        {isWritingPart(paper.part) ? "Open writing feedback" : "Open completed paper"}
-                      </Link>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            </div>
-
-            <div className="divide-y divide-[#DED8CF]/70">
-              {group.rows.map((mistake) => {
-                const key = refKey(mistake);
-                const checked = selected.has(key);
-                const isWritingFeedback = mistake.kind === "writing_feedback";
-                const drillable = canDrill(mistake);
-
-                return (
-                  <div key={key} className="grid gap-4 p-6 lg:grid-cols-[auto_1fr_auto]">
-                    <label className="flex items-center gap-3 text-sm font-bold text-[#4A4A40]">
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5 accent-[#5D7052]"
-                        checked={checked}
-                        disabled={pending || !drillable}
-                        onChange={() => toggle(mistake)}
-                      />
-                      {drillable ? "Add" : "Tracked"}
-                    </label>
-                    <div>
-                      <div className="mb-2 flex flex-wrap gap-2">
-                        <span className={mistake.resolved ? "status-pass" : "status-fail"}>
-                          {mistake.resolved ? "Resolved" : "Active"}
-                        </span>
-                        <span className="rounded-full bg-[#E6DCCD] px-3 py-1 text-xs font-bold text-[#4A4A40]">
-                          {isWritingFeedback ? "Criterion" : `Question ${mistake.questionNumber}`}
-                        </span>
-                        {isWritingFeedback ? (
-                          <span className="rounded-full bg-[#183F73]/10 px-3 py-1 text-xs font-bold text-[#183F73]">
-                            Writing feedback
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="font-display text-xl leading-snug text-[#2C2C24]">
-                        {mistake.prompt}
-                      </p>
-                      <p className="mt-1 text-sm text-[#78786C]">
-                        From {mistake.title} - {formatDate(mistake.created_at)}
-                      </p>
-                      <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                        <p>
-                          <span className="mr-2 text-xs font-bold uppercase tracking-wider text-[#78786C]">
-                            {isWritingFeedback ? "Your band" : "You wrote"}
-                          </span>
-                          <span className="break-words font-mono font-bold text-[#A85448]">
-                            {mistake.userAnswer || "-"}
-                          </span>
-                        </p>
-                        <p>
-                          <span className="mr-2 text-xs font-bold uppercase tracking-wider text-[#78786C]">
-                            {isWritingFeedback ? "Goal" : "Expected"}
-                          </span>
-                          <span className="break-words font-mono font-bold text-[#5D7052]">
-                            {mistake.correctAnswer}
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-start gap-2 lg:justify-end">
-                      <Link href={attemptHref(mistake)}>
-                        <Button type="button" variant="outline" size="sm">
-                          {isWritingFeedback ? "Open feedback" : "Open paper"}
-                        </Button>
-                      </Link>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={pending}
-                        className="text-[#A85448] hover:bg-[#A85448]/10 hover:text-[#A85448]"
-                        onClick={() => deleteMistake(mistake)}
-                      >
-                        Delete mistake
-                      </Button>
-                    </div>
+                      {drillableCount === 0 ? "Tracked only" : "Select part"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => clearGroup(group.rows)}
+                    >
+                      Clear part
+                    </Button>
                   </div>
-                );
-              })}
-            </div>
+                  <details className="mt-4 rounded-2xl border border-[#DED8CF] bg-[#FFFCF4]/80 p-4">
+                    <summary className="cursor-pointer font-bold text-[#183F73]">
+                      View completed papers for this part
+                    </summary>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      {papers.map((paper) => (
+                        <div
+                          key={paper.attemptId}
+                          className="rounded-2xl border border-[#DED8CF]/80 bg-white/70 p-4"
+                        >
+                          <div className="mb-2 flex flex-wrap gap-2">
+                            <span className="rounded-full bg-[#E6DCCD] px-3 py-1 text-xs font-bold text-[#4A4A40]">
+                              {paper.exam}
+                            </span>
+                            <span className="rounded-full bg-[#5D7052]/10 px-3 py-1 text-xs font-bold text-[#5D7052]">
+                              {formatDate(paper.created_at)}
+                            </span>
+                          </div>
+                          <p className="font-display text-xl text-[#2C2C24]">{paper.title}</p>
+                          <Link href={attemptHref(paper)} className="mt-2 inline-flex font-bold text-[#183F73]">
+                            {isWritingPart(paper.part) ? "Open writing feedback" : "Open completed paper"}
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+
+                <div className="divide-y divide-[#DED8CF]/70">
+                  {group.rows.map((mistake) => {
+                    const key = refKey(mistake);
+                    const checked = selected.has(key);
+                    const isWritingFeedback = mistake.kind === "writing_feedback";
+                    const drillable = canDrill(mistake);
+
+                    return (
+                      <div key={key} className="grid gap-4 p-6 lg:grid-cols-[auto_1fr_auto]">
+                        <label className="flex items-center gap-3 text-sm font-bold text-[#4A4A40]">
+                          <input
+                            type="checkbox"
+                            className="h-5 w-5 accent-[#5D7052]"
+                            checked={checked}
+                            disabled={pending || !drillable}
+                            onChange={() => toggle(mistake)}
+                          />
+                          {drillable ? "Add" : "Tracked"}
+                        </label>
+                        <div>
+                          <div className="mb-2 flex flex-wrap gap-2">
+                            <span className={mistake.resolved ? "status-pass" : "status-fail"}>
+                              {mistake.resolved ? "Resolved" : "Active"}
+                            </span>
+                            <span className="rounded-full bg-[#E6DCCD] px-3 py-1 text-xs font-bold text-[#4A4A40]">
+                              {isWritingFeedback ? "Criterion" : `Question ${mistake.questionNumber}`}
+                            </span>
+                            {isWritingFeedback ? (
+                              <span className="rounded-full bg-[#183F73]/10 px-3 py-1 text-xs font-bold text-[#183F73]">
+                                Writing feedback
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="font-display text-xl leading-snug text-[#2C2C24]">
+                            {mistake.prompt}
+                          </p>
+                          <p className="mt-1 text-sm text-[#78786C]">
+                            From {mistake.title} - {formatDate(mistake.created_at)}
+                          </p>
+                          <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                            <p>
+                              <span className="mr-2 text-xs font-bold uppercase tracking-wider text-[#78786C]">
+                                {isWritingFeedback ? "Your band" : "You wrote"}
+                              </span>
+                              <span className="break-words font-mono font-bold text-[#A85448]">
+                                {mistake.userAnswer || "-"}
+                              </span>
+                            </p>
+                            <p>
+                              <span className="mr-2 text-xs font-bold uppercase tracking-wider text-[#78786C]">
+                                {isWritingFeedback ? "Goal" : "Expected"}
+                              </span>
+                              <span className="break-words font-mono font-bold text-[#5D7052]">
+                                {mistake.correctAnswer}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-start gap-2 lg:justify-end">
+                          <Link href={attemptHref(mistake)}>
+                            <Button type="button" variant="outline" size="sm">
+                              {isWritingFeedback ? "Open feedback" : "Open paper"}
+                            </Button>
+                          </Link>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={pending}
+                            className="text-[#A85448] hover:bg-[#A85448]/10 hover:text-[#A85448]"
+                            onClick={() => deleteMistake(mistake)}
+                          >
+                            Delete mistake
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : null}
           </Card>
         );
       })}
