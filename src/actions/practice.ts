@@ -766,6 +766,55 @@ async function loadSimilarMistakeSource(input: { attemptId: string; itemKey: str
   };
 }
 
+const SIMILAR_DRILL_TEMPERATURES = [0.75, 0.55, 0.35];
+
+type LoadedSimilarSource = Awaited<ReturnType<typeof loadSimilarMistakeSource>> extends infer T
+  ? T extends { error: unknown }
+    ? never
+    : T
+  : never;
+
+async function generateOneSimilarDrill(
+  loadedSource: LoadedSimilarSource,
+): Promise<{ drill: SimilarMistakeDrill } | { error: string }> {
+  const prompt = buildSimilarMistakePrompt(loadedSource.source);
+  let lastIssue: unknown = null;
+  for (let attempt = 0; attempt < SIMILAR_DRILL_TEMPERATURES.length; attempt++) {
+    try {
+      const raw = await chatJson<unknown>({
+        prompt,
+        temperature: SIMILAR_DRILL_TEMPERATURES[attempt],
+        maxTokens: 900,
+        signal: AbortSignal.timeout(22000),
+      });
+      const parsed = similarMistakeDrillSchema.safeParse(raw);
+      if (!parsed.success) {
+        lastIssue = parsed.error.issues;
+        console.error("[similarMistakeDrill] schema validation failed", {
+          attempt,
+          issues: parsed.error.issues,
+          raw,
+        });
+        continue;
+      }
+      const normalized = normaliseSimilarDrill(parsed.data);
+      if ("error" in normalized) {
+        lastIssue = normalized.error;
+        continue;
+      }
+      return { drill: normalized };
+    } catch (innerError) {
+      if (innerError instanceof OpenRouterError) {
+        lastIssue = innerError.message;
+        continue;
+      }
+      throw innerError;
+    }
+  }
+  console.error("[similarMistakeDrill] gave up after retries", { lastIssue });
+  return { error: "The AI returned a malformed similar exercise. Try again." };
+}
+
 export async function generateSimilarMistakeDrillAction(input: {
   attemptId: string;
   itemKey: string;
@@ -781,42 +830,7 @@ export async function generateSimilarMistakeDrillAction(input: {
     const quota = await consumeAiQuota();
     if (!quota.allowed) return { error: quotaErrorMessage(quota) };
 
-    const prompt = buildSimilarMistakePrompt(loaded.source);
-    let lastIssue: unknown = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const raw = await chatJson<unknown>({
-          prompt,
-          temperature: attempt === 0 ? 0.75 : 0.5,
-          maxTokens: 900,
-          signal: AbortSignal.timeout(22000),
-        });
-        const parsed = similarMistakeDrillSchema.safeParse(raw);
-        if (!parsed.success) {
-          lastIssue = parsed.error.issues;
-          console.error("[similarMistakeDrill] schema validation failed", {
-            attempt,
-            issues: parsed.error.issues,
-            raw,
-          });
-          continue;
-        }
-        const normalized = normaliseSimilarDrill(parsed.data);
-        if ("error" in normalized) {
-          lastIssue = normalized.error;
-          continue;
-        }
-        return { drill: normalized };
-      } catch (innerError) {
-        if (innerError instanceof OpenRouterError) {
-          lastIssue = innerError.message;
-          continue;
-        }
-        throw innerError;
-      }
-    }
-    console.error("[similarMistakeDrill] gave up after retry", { lastIssue });
-    return { error: "The AI returned a malformed similar exercise. Try again." };
+    return await generateOneSimilarDrill(loaded);
   } catch (error) {
     if (error instanceof OpenRouterError) {
       return { error: safeActionError(error, "AI service unavailable. Try again.") };
@@ -825,20 +839,130 @@ export async function generateSimilarMistakeDrillAction(input: {
   }
 }
 
-export async function submitSimilarMistakeDrillAction(input: {
+export interface SimilarDrillSetItem {
+  ref: { attemptId: string; itemKey: string };
+  drill: SimilarMistakeDrill;
+  source: {
+    exam: Exam;
+    part: string;
+    partName: string;
+    title: string;
+    prompt: string;
+    context?: string;
+    choices?: string[];
+    userAnswer: string;
+    correctAnswer: string;
+    questionNumber: number;
+  };
+}
+
+async function runWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  const runners = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
+    while (true) {
+      const current = cursor++;
+      if (current >= items.length) return;
+      results[current] = await worker(items[current], current);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
+export async function generateSimilarDrillSetAction(input: {
+  items: Array<{ attemptId: string; itemKey: string }>;
+}): Promise<{ drills: SimilarDrillSetItem[] } | { error: string }> {
+  const refs = (input.items ?? [])
+    .map((item) => ({
+      attemptId: String(item?.attemptId ?? "").trim(),
+      itemKey: String(item?.itemKey ?? "").trim(),
+    }))
+    .filter((item) => item.attemptId && item.itemKey);
+  if (refs.length === 0) return { error: "No mistakes selected." };
+  if (refs.length > 20) return { error: "Drill set too large. Select 20 or fewer mistakes." };
+
+  try {
+    const quota = await consumeAiQuota();
+    if (!quota.allowed) return { error: quotaErrorMessage(quota) };
+
+    const loaded = await Promise.all(refs.map((ref) => loadSimilarMistakeSource(ref)));
+    for (const entry of loaded) {
+      if ("error" in entry) {
+        return { error: entry.error ?? "One of the mistakes could not be loaded." };
+      }
+    }
+    const sources = loaded as LoadedSimilarSource[];
+    const partRanges: Record<string, number> = {
+      part1: 1,
+      part2: 9,
+      part3: 17,
+      part4: 25,
+      part5: 31,
+      part6: 37,
+      part7: 44,
+      writing_part1: 54,
+      writing_part2: 55,
+    };
+    const questionNumber = (part: string, itemKey: string) => {
+      const numeric = Number(itemKey.match(/\d+/)?.[0] ?? "1");
+      return (partRanges[part] ?? 1) + numeric - 1;
+    };
+
+    const generated = await runWithConcurrency(sources, 4, (src) => generateOneSimilarDrill(src));
+
+    const drills: SimilarDrillSetItem[] = [];
+    for (let i = 0; i < sources.length; i++) {
+      const outcome = generated[i];
+      if ("error" in outcome) {
+        return {
+          error: "Some items couldn't be generated. Try again.",
+        };
+      }
+      const src = sources[i];
+      drills.push({
+        ref: refs[i],
+        drill: outcome.drill,
+        source: {
+          exam: src.source.exam,
+          part: src.source.part,
+          partName: src.source.partName,
+          title: src.source.title,
+          prompt: src.source.prompt,
+          context: src.source.context,
+          choices: src.source.choices,
+          userAnswer: src.source.userAnswer,
+          correctAnswer: src.source.correctAnswer,
+          questionNumber: questionNumber(src.source.part, refs[i].itemKey),
+        },
+      });
+    }
+    return { drills };
+  } catch (error) {
+    if (error instanceof OpenRouterError) {
+      return { error: safeActionError(error, "AI service unavailable. Try again.") };
+    }
+    return { error: safeActionError(error, "Could not generate similar practice. Try again.") };
+  }
+}
+
+interface SubmitOneSimilarOutcome {
+  accepted: boolean;
+  correctAnswer: string;
+  explanation: string;
+  progress: { attempted: number; correct: number; lastPracticedAt: string };
+}
+
+async function submitOneSimilarDrill(input: {
   attemptId: string;
   itemKey: string;
   drill: SimilarMistakeDrill;
   answer: string;
-}): Promise<
-  | {
-      accepted: boolean;
-      correctAnswer: string;
-      explanation: string;
-      progress: { attempted: number; correct: number; lastPracticedAt: string };
-    }
-  | { error: string }
-> {
+}): Promise<SubmitOneSimilarOutcome | { error: string }> {
   const attemptId = String(input.attemptId ?? "").trim();
   const itemKey = String(input.itemKey ?? "").trim();
   const answer = String(input.answer ?? "").trim();
@@ -850,47 +974,110 @@ export async function submitSimilarMistakeDrillAction(input: {
   const acceptedAnswers = [drill.correctAnswer, ...(drill.acceptableAnswers ?? [])];
   const accepted = acceptedAnswers.some((candidate) => normalizeAnswer(candidate) === normalizeAnswer(answer));
 
+  const loaded = await loadSimilarMistakeSource({ attemptId, itemKey });
+  if ("error" in loaded) return { error: loaded.error ?? "Mistake not found." };
+
+  const now = new Date().toISOString();
+  const nextLog = updateSimilarPracticeLog({
+    currentLog: loaded.row.mistake_log,
+    itemKey,
+    firstAnswer: loaded.source.userAnswer,
+    correctAnswer: loaded.source.correctAnswer,
+    accepted,
+    now,
+  });
+  const progress = nextLog.find((entry) => entry.itemKey === itemKey)?.similarPractice;
+
+  const { error: updateError } = await loaded.supabase
+    .from("history")
+    .update({ mistake_log: nextLog })
+    .eq("id", attemptId)
+    .eq("user_id", loaded.userId);
+
+  if (updateError || !progress) {
+    return { error: safeActionError(updateError, "Could not save similar practice. Try again.") };
+  }
+
+  return {
+    accepted,
+    correctAnswer: drill.correctAnswer,
+    explanation: drill.explanation,
+    progress: {
+      attempted: progress.attempted,
+      correct: progress.correct,
+      lastPracticedAt: progress.lastPracticedAt ?? now,
+    },
+  };
+}
+
+export async function submitSimilarMistakeDrillAction(input: {
+  attemptId: string;
+  itemKey: string;
+  drill: SimilarMistakeDrill;
+  answer: string;
+}): Promise<SubmitOneSimilarOutcome | { error: string }> {
   try {
-    const loaded = await loadSimilarMistakeSource({ attemptId, itemKey });
-    if ("error" in loaded) return { error: loaded.error ?? "Mistake not found." };
+    const result = await submitOneSimilarDrill(input);
+    if (!("error" in result)) {
+      revalidatePath("/dashboard");
+      revalidatePath("/dashboard/mistakes");
+      revalidatePath(`/dashboard/history/${input.attemptId}`);
+      revalidatePath(`/dashboard/writing/${input.attemptId}`);
+    }
+    return result;
+  } catch (error) {
+    return { error: safeActionError(error, "Could not check similar practice. Try again.") };
+  }
+}
 
-    const now = new Date().toISOString();
-    const nextLog = updateSimilarPracticeLog({
-      currentLog: loaded.row.mistake_log,
-      itemKey,
-      firstAnswer: loaded.source.userAnswer,
-      correctAnswer: loaded.source.correctAnswer,
-      accepted,
-      now,
-    });
-    const progress = nextLog.find((entry) => entry.itemKey === itemKey)?.similarPractice;
+export interface SimilarDrillSetResult {
+  ref: { attemptId: string; itemKey: string };
+  accepted: boolean;
+  correctAnswer: string;
+  explanation: string;
+  progress: { attempted: number; correct: number; lastPracticedAt: string };
+}
 
-    const { error: updateError } = await loaded.supabase
-      .from("history")
-      .update({ mistake_log: nextLog })
-      .eq("id", attemptId)
-      .eq("user_id", loaded.userId);
+export async function submitSimilarDrillSetAction(input: {
+  items: Array<{
+    attemptId: string;
+    itemKey: string;
+    drill: SimilarMistakeDrill;
+    answer: string;
+  }>;
+}): Promise<
+  | { results: SimilarDrillSetResult[]; score: number; maxScore: number }
+  | { error: string }
+> {
+  const items = input.items ?? [];
+  if (items.length === 0) return { error: "Nothing to grade." };
 
-    if (updateError || !progress) {
-      return { error: safeActionError(updateError, "Could not save similar practice. Try again.") };
+  try {
+    const results: SimilarDrillSetResult[] = [];
+    const revalidateAttempts = new Set<string>();
+    for (const item of items) {
+      const outcome = await submitOneSimilarDrill(item);
+      if ("error" in outcome) return { error: outcome.error };
+      results.push({
+        ref: { attemptId: item.attemptId, itemKey: item.itemKey },
+        accepted: outcome.accepted,
+        correctAnswer: outcome.correctAnswer,
+        explanation: outcome.explanation,
+        progress: outcome.progress,
+      });
+      revalidateAttempts.add(item.attemptId);
     }
 
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/mistakes");
-    revalidatePath(`/dashboard/history/${attemptId}`);
-    revalidatePath(`/dashboard/writing/${attemptId}`);
+    for (const attemptId of revalidateAttempts) {
+      revalidatePath(`/dashboard/history/${attemptId}`);
+      revalidatePath(`/dashboard/writing/${attemptId}`);
+    }
 
-    return {
-      accepted,
-      correctAnswer: drill.correctAnswer,
-      explanation: drill.explanation,
-      progress: {
-        attempted: progress.attempted,
-        correct: progress.correct,
-        lastPracticedAt: progress.lastPracticedAt ?? now,
-      },
-    };
+    const score = results.filter((entry) => entry.accepted).length;
+    return { results, score, maxScore: results.length };
   } catch (error) {
-    return { error: safeActionError(error, "Could not check similar practice. Try again.") };
+    return { error: safeActionError(error, "Could not grade the drill. Try again.") };
   }
 }
