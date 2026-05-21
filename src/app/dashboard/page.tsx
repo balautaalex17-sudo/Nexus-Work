@@ -25,9 +25,49 @@ function partLabel(row: { exam: Exam; part: string }) {
   return part.replace("part", "Part ");
 }
 
+function activityLabel(dateString: string) {
+  const now = new Date();
+  const then = new Date(dateString);
+  const diffMs = now.getTime() - then.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return then.toLocaleDateString();
+}
+
+function nextAction(summary: Awaited<ReturnType<typeof getDashboardSummary>>) {
+  if (summary.unresolvedMistakes > 0) {
+    return {
+      title: "Clear active mistakes first",
+      blurb: "Use drills to convert weak spots into automatic wins before starting another full paper.",
+      href: "/dashboard/mistakes?mode=drill",
+      cta: "Start focused drill",
+    };
+  }
+
+  if (summary.totalAttempts === 0) {
+    return {
+      title: "Build your baseline",
+      blurb: "Take one paper so the dashboard can map your strengths and gaps.",
+      href: "/practice",
+      cta: "Start your first paper",
+    };
+  }
+
+  return {
+    title: "Keep momentum",
+    blurb: "You are in a clean state. Take a fresh paper to keep your streak and confidence up.",
+    href: "/practice",
+    cta: "Start new paper",
+  };
+}
+
 export default async function DashboardPage() {
   const summary = await getDashboardSummary();
   const nextFocus = summary.weakestPart ?? summary.partStats[0] ?? null;
+  const action = nextAction(summary);
 
   return (
     <>
@@ -104,6 +144,70 @@ export default async function DashboardPage() {
             <p className="text-sm text-[#78786C] mt-2">
               {nextFocus ? `Next focus: ${nextFocus.partName}.` : "Start with one short paper."}
             </p>
+          </Card>
+        </div>
+      </Section>
+
+      <Section maxWidth="2xl" spacing="sm">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <Card shapeIndex={2} className="relative overflow-hidden">
+            <BlobField
+              blobs={[
+                { shape: 4, color: "#5D7052", size: 220, top: "-80px", right: "-80px", opacity: 0.1 },
+              ]}
+            />
+            <p className="eyebrow mb-2">Study control center</p>
+            <h2 className="font-display text-3xl text-[#2C2C24]">{action.title}</h2>
+            <p className="mt-3 max-w-2xl text-[#78786C]">{action.blurb}</p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href={action.href}>
+                <Button>{action.cta}</Button>
+              </Link>
+              <Link href="/dashboard/mistakes?mode=papers">
+                <Button variant="outline">Open completed papers</Button>
+              </Link>
+            </div>
+            <div className="mt-6 rounded-2xl border border-[#DED8CF] bg-[#FFFCF4] p-4">
+              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#78786C]">
+                Quick checklist
+              </p>
+              <p className="text-sm text-[#4A4A40]">
+                One paper, then review mistakes, then one focused drill set, then repeat.
+              </p>
+            </div>
+          </Card>
+
+          <Card shapeIndex={5} className="p-0 overflow-hidden">
+            <div className="border-b border-dashed border-[#DED8CF] p-6">
+              <p className="eyebrow mb-2">Recent activity</p>
+              <h2 className="font-display text-3xl text-[#2C2C24]">Your latest attempts.</h2>
+            </div>
+            {summary.history.length === 0 ? (
+              <div className="p-6 text-[#78786C]">
+                No activity yet. Your latest papers will appear here with one-click review.
+              </div>
+            ) : (
+              <div className="divide-y divide-[#DED8CF]/70">
+                {summary.history.slice(0, 4).map((row) => (
+                  <div key={row.id} className="flex items-center justify-between gap-3 p-4">
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-[#2C2C24]">{row.title}</p>
+                      <p className="text-xs text-[#78786C]">
+                        {row.exam} {partLabel(row)} - {activityLabel(row.created_at)}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="font-display font-bold text-[#183F73]">
+                        {Math.round((row.score / row.max_score) * 100)}%
+                      </p>
+                      <Link href={attemptHref(row)} className="text-xs font-bold text-[#5D7052]">
+                        Review
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
       </Section>
@@ -195,18 +299,52 @@ export default async function DashboardPage() {
               Review what changed.
             </h2>
           </div>
-          <Link href="/practice">
-            <Button variant="ghost">Choose another paper</Button>
-          </Link>
-          <Link href="/dashboard/mistakes?mode=papers">
-            <Button variant="outline">View completed papers</Button>
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/practice">
+              <Button variant="ghost">Choose another paper</Button>
+            </Link>
+            <Link href="/dashboard/mistakes?mode=papers">
+              <Button variant="outline">View completed papers</Button>
+            </Link>
+          </div>
         </div>
 
         <Card shapeIndex={0} className="overflow-hidden p-0">
           {summary.history.length === 0 ? (
-            <div className="p-10 text-center text-[#78786C]">
-              Finish a paper and your results will appear here with review links.
+            <div className="grid gap-6 p-8 md:grid-cols-[auto_1fr] md:items-center md:p-10">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[#DED8CF] bg-[#FFFCF4] text-[#5D7052] md:mx-0">
+                <svg
+                  width="26"
+                  height="26"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <line x1="8" y1="9" x2="16" y2="9" />
+                  <line x1="8" y1="13" x2="16" y2="13" />
+                </svg>
+              </div>
+              <div className="text-center md:text-left">
+                <p className="mb-2 font-display text-2xl font-bold text-[#2C2C24]">
+                  No completed papers yet.
+                </p>
+                <p className="mb-5 max-w-xl text-[#78786C]">
+                  Finish your first paper and this space becomes your review timeline with scores,
+                  mistakes, and direct feedback links.
+                </p>
+                <div className="flex flex-wrap justify-center gap-3 md:justify-start">
+                  <Link href="/practice">
+                    <Button size="sm">Start a paper</Button>
+                  </Link>
+                  <Link href="/dashboard/mistakes">
+                    <Button variant="outline" size="sm">Open mistakes hub</Button>
+                  </Link>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">

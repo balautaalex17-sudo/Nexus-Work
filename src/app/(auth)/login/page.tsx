@@ -49,6 +49,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </Link>
             .
           </p>
+          <p className="mt-3 text-sm text-[#78786C]">
+            Older account or forgotten password?{" "}
+            <Link href="/reset-password" className="font-bold text-[#5D7052]">
+              Reset your password
+            </Link>
+            .
+          </p>
         </Card>
       </div>
     </main>

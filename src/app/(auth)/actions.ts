@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { authQuotaErrorMessage, consumeAuthQuota } from "@/lib/security/authRateLimit";
-import { safeActionError } from "@/lib/errors";
+import { friendlyLoginError, safeActionError } from "@/lib/errors";
 
 export interface AuthState {
   error?: string;
@@ -24,12 +24,67 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
-    return { error: safeActionError(error, "Invalid email or password.") };
+    return { error: friendlyLoginError(error) };
   }
 
   const isSafeRedirect =
     next.startsWith("/") && !next.startsWith("//") && !next.includes("://");
   redirect(isSafeRedirect ? next : "/dashboard");
+}
+
+export async function requestPasswordResetAction(
+  _: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const email = String(formData.get("email") ?? "").trim();
+
+  if (!email) {
+    return { error: "Enter the email address for your account." };
+  }
+
+  const quota = await consumeAuthQuota();
+  if (!quota.allowed) {
+    return { error: authQuotaErrorMessage(quota) };
+  }
+
+  const supabase = await createClient();
+  const headerStore = await headers();
+  const origin = headerStore.get("origin") ?? "https://examcraft-ai.vercel.app";
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/callback?next=/reset-password/update`,
+  });
+
+  if (error) {
+    return { error: safeActionError(error, "Could not send a reset email. Try again.") };
+  }
+
+  return {
+    message:
+      "If an account exists for that email, we sent a password reset link. Open it, then choose a new password.",
+  };
+}
+
+export async function updatePasswordAction(_: AuthState, formData: FormData): Promise<AuthState> {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (password.length < 8) {
+    return { error: "Use at least 8 characters for your new password." };
+  }
+
+  if (password !== confirmPassword) {
+    return { error: "The two passwords do not match." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    return { error: safeActionError(error, "Could not update your password. Request a fresh reset link and try again.") };
+  }
+
+  await supabase.auth.signOut();
+  return { message: "Password updated. You can now log in with your new password." };
 }
 
 export async function signupAction(_: AuthState, formData: FormData): Promise<AuthState> {

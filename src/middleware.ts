@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const publicPrefixes = ["/login", "/signup", "/auth"];
+const publicPrefixes = ["/login", "/signup", "/auth", "/reset-password"];
 
 function isPublicPath(pathname: string) {
   if (pathname === "/") return true;

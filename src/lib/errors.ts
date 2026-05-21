@@ -26,6 +26,15 @@ const AUTH_LINK_EXPIRED_PATTERNS: ReadonlyArray<RegExp> = [
   /token.*expired/i,
 ];
 
+const LEGACY_LOGIN_PATTERNS: ReadonlyArray<RegExp> = [
+  /invalid login/i,
+  /invalid.*credentials/i,
+  /invalid_credentials/i,
+];
+
+export const LEGACY_ACCOUNT_ERROR_MESSAGE =
+  "Your account may need a quick password update. Please reset your password, then log in again.";
+
 export function safeActionError(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) return fallback;
   const message = error.message.trim();
@@ -34,6 +43,17 @@ export function safeActionError(error: unknown, fallback: string): string {
     return fallback;
   }
   return message;
+}
+
+export function friendlyLoginError(error: unknown): string {
+  if (!(error instanceof Error)) return "Invalid email or password.";
+  const message = error.message.trim();
+
+  if (LEGACY_LOGIN_PATTERNS.some((pattern) => pattern.test(message))) {
+    return LEGACY_ACCOUNT_ERROR_MESSAGE;
+  }
+
+  return safeActionError(error, "Invalid email or password.");
 }
 
 export function friendlyAuthError(message: string | null | undefined): string {

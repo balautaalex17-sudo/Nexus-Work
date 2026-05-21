@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { submitMistakePracticeAction } from "@/actions/practice";
 import type { MistakeRow } from "@/actions/history";
 import { ScoreSummary } from "@/components/ScoreSummary";
+import { DrillSourceText } from "@/components/DrillSourceText";
+import { hasGapTokens } from "@/components/exercises/shared";
+import { MiniDrillPanel } from "@/components/MiniDrillPanel";
 
 interface MistakePracticeSessionProps {
   mistakes: MistakeRow[];
@@ -150,9 +153,17 @@ export function MistakePracticeSession({
                   <summary className="cursor-pointer font-bold text-[#183F73]">
                     Show source text
                   </summary>
-                  <p className="passage-text mt-3 whitespace-pre-wrap text-base">
-                    {mistake.context}
-                  </p>
+                  {hasGapTokens(mistake.context) ? (
+                    <DrillSourceText
+                      text={mistake.context}
+                      activeKey={mistake.itemKey}
+                      activeNumber={mistake.questionNumber}
+                    />
+                  ) : (
+                    <p className="passage-text mt-3 whitespace-pre-wrap text-base">
+                      {mistake.context}
+                    </p>
+                  )}
                 </details>
               ) : null}
 
@@ -202,6 +213,18 @@ export function MistakePracticeSession({
                 <p className="text-sm text-[#78786C]">
                   Expected: <span className="font-mono font-bold text-[#5D7052]">{mistake.correctAnswer}</span>
                 </p>
+              ) : null}
+
+              {mistake.kind === "question" &&
+              mistake.correctAnswer.trim().length > 0 &&
+              mistake.correctAnswer.trim().split(/\s+/).length <= 3 ? (
+                <div className="mt-4 border-t border-[#DED8CF] pt-4">
+                  <MiniDrillPanel
+                    word={mistake.correctAnswer.trim()}
+                    exam={mistake.exam}
+                    partType={mistake.part}
+                  />
+                </div>
               ) : null}
             </section>
           );

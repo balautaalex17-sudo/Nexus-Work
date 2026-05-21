@@ -29,6 +29,7 @@ export default async function WritingAttemptPage({ params }: WritingAttemptPageP
   const spec = writingExamSpec(exercise.exam, part);
   const total = writingTotalBand(feedback);
   const wordCount = essayText.trim().length > 0 ? essayText.trim().split(/\s+/).length : 0;
+  const practiceHref = `/practice/${exercise.exam}/${part}?genre=${encodeURIComponent(exercise.genre)}`;
 
   return (
     <>
@@ -72,8 +73,8 @@ export default async function WritingAttemptPage({ params }: WritingAttemptPageP
             </span>{" "}
             - {wordCount} words written (target {writingWordTarget(exercise.exam, part)}).
           </p>
-          <Link href="/practice">
-            <Button variant="outline">Try a new paper</Button>
+          <Link href={practiceHref}>
+            <Button variant="outline">Practice another {spec.selectorLabel}</Button>
           </Link>
         </div>
       </Section>

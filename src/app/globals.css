@@ -143,12 +143,14 @@ a {
   color: var(--primary);
   text-decoration: none;
   font-weight: 600;
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.25s ease, color 0.25s ease;
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 1px;
+  transition: color 0.25s ease, text-decoration-color 0.25s ease;
 }
 a:hover {
   color: var(--secondary);
-  border-bottom-color: currentColor;
+  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 
 button,

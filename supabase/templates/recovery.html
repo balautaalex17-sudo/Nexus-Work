@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Confirm your Nexus Work account</title>
+    <title>Reset your Nexus Work password</title>
   </head>
   <body style="margin:0; padding:0; background:#FDFCF8; color:#2C2C24; font-family:Nunito, Arial, Helvetica, sans-serif;">
     <div style="display:none; max-height:0; overflow:hidden; opacity:0;">
-      Confirm your email address and start your Cambridge practice desk.
+      Choose a new Nexus Work password and keep practising.
     </div>
 
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%; background:#FDFCF8; padding:34px 14px;">
@@ -31,23 +31,23 @@
 
             <tr>
               <td style="background:#FEFEFA; border:1px solid #DED8CF; border-radius:30px; padding:40px 34px; box-shadow:0 18px 45px rgba(93,112,82,0.14);">
-                <div style="display:inline-block; margin:0 0 18px; padding:7px 14px; border-radius:999px; background:rgba(193,140,93,0.14); color:#9A6730; font-size:12px; font-weight:800; letter-spacing:1.8px; text-transform:uppercase;">
-                  Confirm your email
+                <div style="display:inline-block; margin:0 0 18px; padding:7px 14px; border-radius:999px; background:rgba(93,112,82,0.12); color:#5D7052; font-size:12px; font-weight:800; letter-spacing:1.8px; text-transform:uppercase;">
+                  Password reset
                 </div>
 
                 <h1 style="margin:0 0 14px; color:#2C2C24; font-family:Georgia, 'Times New Roman', serif; font-size:38px; line-height:1.1; font-weight:700; letter-spacing:-0.02em;">
-                  Your practice desk is ready.
+                  Set a fresh password.
                 </h1>
 
                 <p style="margin:0 0 28px; color:#78786C; font-size:17px; line-height:1.65;">
-                  Confirm this email address to finish setting up Nexus Work and start practising Cambridge exam parts.
+                  Use this secure link to choose a new password for Nexus Work. If your account is older, this refreshes it for the current login system.
                 </p>
 
                 <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 28px;">
                   <tr>
                     <td style="border-radius:999px; background:#5D7052;">
-                      <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=email" style="display:inline-block; padding:15px 28px; color:#F3F4F1; font-size:16px; font-weight:800; text-decoration:none; border-radius:999px;">
-                        Confirm my account
+                      <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=/reset-password/update" style="display:inline-block; padding:15px 28px; color:#F3F4F1; font-size:16px; font-weight:800; text-decoration:none; border-radius:999px;">
+                        Choose a new password
                       </a>
                     </td>
                   </tr>
@@ -55,13 +55,13 @@
 
                 <div style="border-top:1px dashed #DED8CF; padding-top:18px;">
                   <p style="margin:0 0 8px; color:#78786C; font-size:14px; line-height:1.6;">
-                    This link is meant for <strong style="color:#4A4A40;">{{ .Email }}</strong> and expires automatically for your safety.
+                    This link is meant for <strong style="color:#4A4A40;">{{ .Email }}</strong>. You can ignore this email if you did not request a reset.
                   </p>
 
                   <p style="margin:0; color:#78786C; font-size:13px; line-height:1.6;">
                     If the button does not open, paste this link into your browser:<br>
-                    <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=email" style="color:#5D7052; font-weight:800; word-break:break-all; text-decoration:none;">
-                      {{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=email
+                    <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=/reset-password/update" style="color:#5D7052; font-weight:800; word-break:break-all; text-decoration:none;">
+                      {{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=/reset-password/update
                     </a>
                   </p>
                 </div>
@@ -70,7 +70,7 @@
 
             <tr>
               <td style="padding:18px 8px 0; color:#9B978D; font-size:12px; line-height:1.5;">
-                You received this because someone signed up for Nexus Work with this email address.
+                You received this because someone requested a Nexus Work password reset.
               </td>
             </tr>
           </table>

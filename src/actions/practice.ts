@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generateExercise } from "@/lib/exercises/generate";
 import {
@@ -25,6 +26,7 @@ import {
 } from "@/lib/exercises/writing";
 import { consumeAiQuota, quotaErrorMessage } from "@/lib/security/rateLimit";
 import { safeActionError } from "@/lib/errors";
+import { chatJson, OpenRouterError } from "@/lib/gemini/client";
 
 const partMap: Record<Exercise["type"], PartId> = {
   use_of_english_part1: "part1",
@@ -455,5 +457,94 @@ export async function submitMistakePracticeAction(input: {
     };
   } catch (error) {
     return { error: safeActionError(error, "Mistake test failed. Try again.") };
+  }
+}
+
+const contextualDrillSchema = z.object({
+  sentence: z.string().min(20).max(280),
+  options: z.array(z.string().min(1).max(40)).length(4),
+  correctIndex: z.number().int().min(0).max(3),
+  explanation: z.string().min(10).max(240),
+});
+
+export type ContextualDrill = z.infer<typeof contextualDrillSchema>;
+
+function buildContextualDrillPrompt(word: string, exam: Exam, partType: string): string {
+  const isCloze = partType === "part1" || partType === "part2";
+  return [
+    "You are a Cambridge English exam writer.",
+    `Task: write ONE short sentence (15-30 words) at ${exam} level where the word "${word}" is the correct answer.`,
+    `The sentence MUST contain the literal string "____" (four underscores) in the position where "${word}" goes.`,
+    `Do NOT include the word "${word}" anywhere else in the sentence.`,
+    "Provide exactly 4 answer options (single words or short phrases of the same word class as the target).",
+    "Three options must be plausible distractors that are wrong in this specific context (wrong collocation, wrong register, wrong nuance, or false friend).",
+    isCloze
+      ? "The four options should look like Cambridge Part 1 distractors: same word class, similar surface meaning, but only one fits the collocation."
+      : "Pick distractors that learners commonly confuse with the target.",
+    "Also write a one-sentence explanation (under 240 chars) of WHY the target word is right and the distractors are wrong.",
+    "Return strictly valid JSON with this shape:",
+    `{"sentence":"...____...","options":["a","b","c","d"],"correctIndex":0,"explanation":"..."}`,
+    `The "correctIndex" must point to "${word}" in the options array (case-insensitive match).`,
+    "Do NOT wrap in markdown fences.",
+  ].join("\n");
+}
+
+export async function generateContextualDrillAction(input: {
+  word: string;
+  exam: Exam;
+  partType: string;
+}): Promise<{ drill: ContextualDrill } | { error: string }> {
+  const validExam = examSchema.safeParse(input.exam);
+  if (!validExam.success) return { error: "Invalid exam." };
+
+  const word = String(input.word ?? "").trim();
+  if (!word || word.length > 40) return { error: "Invalid word." };
+
+  const partType = String(input.partType ?? "").trim();
+  if (!partType || partType.length > 32) return { error: "Invalid part." };
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "Unauthorized" };
+
+    const quota = await consumeAiQuota();
+    if (!quota.allowed) return { error: quotaErrorMessage(quota) };
+
+    const prompt = buildContextualDrillPrompt(word, validExam.data, partType);
+    const raw = await chatJson<unknown>({
+      prompt,
+      temperature: 0.8,
+      maxTokens: 600,
+      signal: AbortSignal.timeout(20000),
+    });
+
+    const parsed = contextualDrillSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { error: "The AI returned a malformed exercise. Try again." };
+    }
+    if (!parsed.data.sentence.includes("____")) {
+      return { error: "The AI omitted the blank. Try again." };
+    }
+
+    const correctOption = parsed.data.options[parsed.data.correctIndex];
+    if (!correctOption || correctOption.toLowerCase() !== word.toLowerCase()) {
+      const matchIndex = parsed.data.options.findIndex(
+        (opt) => opt.toLowerCase() === word.toLowerCase(),
+      );
+      if (matchIndex < 0) {
+        return { error: "The AI did not include the target word. Try again." };
+      }
+      parsed.data.correctIndex = matchIndex;
+    }
+
+    return { drill: parsed.data };
+  } catch (error) {
+    if (error instanceof OpenRouterError) {
+      return { error: safeActionError(error, "AI service unavailable. Try again.") };
+    }
+    return { error: safeActionError(error, "Could not generate drill. Try again.") };
   }
 }
