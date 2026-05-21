@@ -37,6 +37,23 @@ function refKey(mistake: MistakeRow) {
   return `${mistake.attemptId}::${mistake.itemKey}`;
 }
 
+function renderPromptWithBlanks(text: string) {
+  const parts = text.split(/(\s_+\s|_{3,})/g);
+  return parts.map((segment, index) => {
+    if (/^\s?_+\s?$/.test(segment)) {
+      return (
+        <span
+          key={index}
+          className="mx-1 inline-block min-w-[3.5em] border-b-2 border-[#2C2C24]/70 align-baseline"
+        >
+          &nbsp;
+        </span>
+      );
+    }
+    return <span key={index}>{segment}</span>;
+  });
+}
+
 export function SimilarMistakePracticeSession({
   mistakes,
   title,
@@ -135,7 +152,9 @@ export function SimilarMistakePracticeSession({
             <p className="eyebrow mb-2">
               {current?.exam} - {current?.partName}
             </p>
-            <h3 className="font-display text-2xl text-[#2C2C24]">{current?.prompt}</h3>
+            <h3 className="font-display text-2xl text-[#2C2C24]">
+              {current?.prompt ? renderPromptWithBlanks(current.prompt) : null}
+            </h3>
             <p className="mt-1 text-sm text-[#78786C]">
               Original: {current?.title} - question {current?.questionNumber}
             </p>
@@ -179,7 +198,9 @@ export function SimilarMistakePracticeSession({
             {state.drill.context ? (
               <p className="passage-text mb-4 whitespace-pre-wrap text-base">{state.drill.context}</p>
             ) : null}
-            <h4 className="mb-4 font-display text-xl text-[#2C2C24]">{state.drill.prompt}</h4>
+            <h4 className="mb-4 font-display text-xl text-[#2C2C24]">
+              {renderPromptWithBlanks(state.drill.prompt)}
+            </h4>
 
             {state.drill.kind === "choice" && state.drill.choices?.length ? (
               <div className="mb-4 grid gap-2">

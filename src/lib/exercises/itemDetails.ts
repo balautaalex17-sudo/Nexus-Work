@@ -33,6 +33,32 @@ export function questionNumberForKey(part: string, key: string) {
   return (PART_RANGE[part] ?? 1) + indexFromKey(key) - 1;
 }
 
+const GAP_TOKEN_RE_GLOBAL = /(?:\[|\(|\{|<)?\bgap\d+\b(?:\]|\)|\}|>)?/gi;
+const BLANK_GLYPH = "  _____  ";
+
+function previewSentenceForGap(text: string, gapKey: string): string | null {
+  const tokenRe = new RegExp(`(?:\\[|\\(|\\{|<)?\\b${gapKey}\\b(?:\\]|\\)|\\}|>)?`, "i");
+  const match = tokenRe.exec(text);
+  if (!match) return null;
+  const idx = match.index;
+  const sentenceStart = (() => {
+    const last = Math.max(
+      text.lastIndexOf(". ", idx - 1),
+      text.lastIndexOf("! ", idx - 1),
+      text.lastIndexOf("? ", idx - 1),
+      text.lastIndexOf("\n", idx - 1),
+    );
+    return last >= 0 ? last + 1 : 0;
+  })();
+  const afterIdx = idx + match[0].length;
+  const remainder = text.slice(afterIdx);
+  const tail = remainder.search(/[.!?](?:\s|$)|\n/);
+  const sentenceEnd = tail >= 0 ? afterIdx + tail + 1 : text.length;
+  const raw = text.slice(sentenceStart, sentenceEnd).trim();
+  const withBlank = raw.replace(GAP_TOKEN_RE_GLOBAL, BLANK_GLYPH);
+  return withBlank.replace(/\s+/g, " ").trim();
+}
+
 export function itemKeysForExercise(exercise: Exercise) {
   switch (exercise.type) {
     case "use_of_english_part1":
@@ -62,8 +88,9 @@ export function describeExerciseItem(
   switch (exercise.type) {
     case "use_of_english_part1": {
       const correct = exercise.correctAnswers[key as keyof typeof exercise.correctAnswers];
+      const preview = previewSentenceForGap(exercise.text, key);
       return {
-        prompt: `Multiple choice cloze - gap ${idx + 1}`,
+        prompt: preview ?? "Choose the best word for the blank.",
         context: exercise.text,
         choices: exercise.options[key as keyof typeof exercise.options],
         correctAnswer: correct,
@@ -72,11 +99,17 @@ export function describeExerciseItem(
     case "use_of_english_part2":
     case "use_of_english_part3": {
       const correct = exercise.correctAnswers[key as keyof typeof exercise.correctAnswers];
+      if (exercise.type === "use_of_english_part3") {
+        const base = exercise.baseWords[key as keyof typeof exercise.baseWords];
+        return {
+          prompt: `Form the correct word from "${base}".`,
+          context: exercise.text,
+          correctAnswer: correct,
+        };
+      }
+      const preview = previewSentenceForGap(exercise.text, key);
       return {
-        prompt:
-          exercise.type === "use_of_english_part3"
-            ? `Word formation - base "${exercise.baseWords[key as keyof typeof exercise.baseWords]}"`
-            : `Open cloze - gap ${idx + 1}`,
+        prompt: preview ?? "Fill in the missing word.",
         context: exercise.text,
         correctAnswer: correct,
       };
@@ -102,7 +135,7 @@ export function describeExerciseItem(
     }
     case "reading_part6": {
       return {
-        prompt: `Gapped text - gap ${idx + 1}`,
+        prompt: "Choose the paragraph that best fits this position in the text.",
         context: exercise.text,
         choices: exercise.paragraphs.map((paragraph) => `${paragraph.id}. ${paragraph.content}`),
         correctAnswer: exercise.correctOrder[idx] ?? "",

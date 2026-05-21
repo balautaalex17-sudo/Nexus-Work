@@ -460,9 +460,18 @@ export function DashboardMistakesHub({
                 Create new sets from the Mistakes tab by selecting individual mistakes.
               </p>
             </div>
-            <Button type="button" onClick={() => navigate("mistakes", level)}>
-              Choose mistakes
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() => navigate("drill", level, undefined, "similar")}
+                disabled={visibleMistakes.length === 0}
+              >
+                Practice more
+              </Button>
+              <Button type="button" variant="outline" onClick={() => navigate("mistakes", level)}>
+                Choose mistakes
+              </Button>
+            </div>
           </div>
 
           {drillSets.length === 0 ? (
