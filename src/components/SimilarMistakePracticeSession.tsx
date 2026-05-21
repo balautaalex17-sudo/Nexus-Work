@@ -120,6 +120,15 @@ export function SimilarMistakePracticeSession({
     setPhase({ kind: "ready", drills: result.drills });
   }, [refs]);
 
+  const redoSame = () => {
+    if (phase.kind !== "graded") return;
+    setAnswers({});
+    setPhase({ kind: "ready", drills: phase.drills });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
   useEffect(() => {
     void loadDrills();
   }, [loadDrills]);
@@ -203,19 +212,62 @@ export function SimilarMistakePracticeSession({
         <ScoreSummary score={phase.score} maxScore={phase.maxScore} />
       ) : null}
 
-      {phase.kind === "loading" || phase.kind === "grading" ? (
+      {phase.kind === "loading" ? (
         <div className="app-card text-center">
-          <p className="eyebrow mb-3">
-            {phase.kind === "loading" ? "Generating fresh exercises" : "Grading your drill"}
-          </p>
-          <p className="text-[#78786C]">
-            {phase.kind === "loading"
-              ? "Building a brand-new set of similar exercises based on your mistakes..."
-              : "Checking each answer..."}
-          </p>
-          <div className="mt-6 h-2 overflow-hidden rounded-full bg-[#DED8CF]/70">
-            <div className="h-full w-1/2 animate-pulse rounded-full bg-[#5D7052]" />
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center">
+            <span className="relative inline-flex h-14 w-14">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#5D7052]/40 opacity-75" />
+              <span className="relative inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#5D7052] text-white shadow-soft">
+                <svg
+                  className="h-6 w-6 animate-spin"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M21 12a9 9 0 1 1-3-6.7" />
+                </svg>
+              </span>
+            </span>
           </div>
+          <p className="eyebrow mb-2">Generating fresh exercises</p>
+          <p className="mb-6 text-[#78786C]">
+            Building a brand-new set of similar exercises based on your mistakes...
+          </p>
+          <div className="space-y-3">
+            {mistakes.map((mistake) => (
+              <div
+                key={`${mistake.attemptId}::${mistake.itemKey}`}
+                className="flex items-center gap-3 rounded-2xl border border-dashed border-[#DED8CF] bg-white/60 p-4 text-left"
+              >
+                <span className="h-3 w-3 animate-pulse rounded-full bg-[#5D7052]/40" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-2/3 animate-pulse rounded-full bg-[#DED8CF]/80" />
+                  <div className="h-3 w-1/3 animate-pulse rounded-full bg-[#DED8CF]/60" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {phase.kind === "grading" ? (
+        <div className="app-card text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#5D7052]/10">
+            <svg
+              className="h-6 w-6 animate-spin text-[#5D7052]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
+              <path d="M21 12a9 9 0 1 1-3-6.7" />
+            </svg>
+          </div>
+          <p className="eyebrow mb-1">Grading your drill</p>
+          <p className="text-[#78786C]">Checking each answer...</p>
         </div>
       ) : null}
 
@@ -225,6 +277,67 @@ export function SimilarMistakePracticeSession({
           <Button type="button" onClick={loadDrills}>
             Try again
           </Button>
+        </div>
+      ) : null}
+
+      {phase.kind === "graded" ? (
+        <div className="app-card mb-5">
+          <p className="eyebrow mb-3">Review</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-[#5D7052]/20 bg-[#5D7052]/5 p-4">
+              <p className="mb-1 text-xs font-bold uppercase tracking-widest text-[#5D7052]">
+                Correct ({phase.score})
+              </p>
+              {phase.drills.filter((entry) => phase.results[refKey(entry.ref)]?.accepted).length === 0 ? (
+                <p className="text-sm text-[#78786C]">None this round.</p>
+              ) : (
+                <ul className="space-y-1 text-sm text-[#4A4A40]">
+                  {phase.drills
+                    .filter((entry) => phase.results[refKey(entry.ref)]?.accepted)
+                    .map((entry) => (
+                      <li key={refKey(entry.ref)}>
+                        <span className="font-bold text-[#5D7052]">
+                          {phase.results[refKey(entry.ref)]?.correctAnswer}
+                        </span>{" "}
+                        <span className="text-[#78786C]">
+                          — {entry.source.partName}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-2xl border border-[#A85448]/20 bg-[#A85448]/5 p-4">
+              <p className="mb-1 text-xs font-bold uppercase tracking-widest text-[#A85448]">
+                Mistakes ({phase.maxScore - phase.score})
+              </p>
+              {phase.drills.filter((entry) => phase.results[refKey(entry.ref)] && !phase.results[refKey(entry.ref)].accepted).length === 0 ? (
+                <p className="text-sm text-[#78786C]">Nothing to review — perfect set.</p>
+              ) : (
+                <ul className="space-y-2 text-sm text-[#4A4A40]">
+                  {phase.drills
+                    .filter(
+                      (entry) =>
+                        phase.results[refKey(entry.ref)] &&
+                        !phase.results[refKey(entry.ref)].accepted,
+                    )
+                    .map((entry) => {
+                      const result = phase.results[refKey(entry.ref)];
+                      const yourAnswer = (answers[refKey(entry.ref)] ?? "").trim();
+                      return (
+                        <li key={refKey(entry.ref)}>
+                          <span className="text-[#78786C]">You wrote: </span>
+                          <span className="font-bold text-[#A85448]">{yourAnswer || "(blank)"}</span>
+                          <span className="mx-1 text-[#78786C]">→</span>
+                          <span className="font-bold text-[#5D7052]">{result.correctAnswer}</span>
+                          <span className="ml-1 text-[#78786C]">({entry.source.partName})</span>
+                        </li>
+                      );
+                    })}
+                </ul>
+              )}
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -367,21 +480,27 @@ export function SimilarMistakePracticeSession({
       ) : null}
 
       {phase.kind === "graded" ? (
-        <div className="mt-8 flex flex-wrap justify-between gap-2">
-          <Link href="/dashboard/mistakes?mode=drill">
-            <Button type="button" variant="ghost" size="sm">
-              Back to drill sets
-            </Button>
-          </Link>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/practice">
-              <Button type="button" variant="outline" size="sm">
-                Practice something else
+        <div className="app-card mt-8">
+          <p className="eyebrow mb-3">What next?</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Link href="/practice" className="block">
+              <Button type="button" variant="outline" className="w-full">
+                Do another test
               </Button>
             </Link>
-            <Button type="button" onClick={loadDrills}>
-              Repeat — generate other similar
+            <Button type="button" variant="outline" className="w-full" onClick={redoSame}>
+              Redo this one
             </Button>
+            <Button type="button" className="w-full" onClick={loadDrills}>
+              Create a similar one
+            </Button>
+          </div>
+          <div className="mt-4 text-center">
+            <Link href="/dashboard/mistakes?mode=drill">
+              <Button type="button" variant="ghost" size="sm">
+                Back to drill sets
+              </Button>
+            </Link>
           </div>
         </div>
       ) : null}

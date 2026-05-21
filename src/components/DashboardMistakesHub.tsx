@@ -253,19 +253,13 @@ export function DashboardMistakesHub({
   if (mode === "drill" && selectedDrill && selectedDrillItems.length > 0) {
     if (practiceMode === "similar") {
       return (
-        <>
-          <Section maxWidth="2xl" spacing="sm">
-            <HubTabs activeMode={mode} onChange={(nextMode) => navigate(nextMode, level)} />
-            <LevelFilter activeLevel={level} onChange={(nextLevel) => navigate(mode, nextLevel, setId, practiceMode)} />
-          </Section>
-          <SimilarMistakePracticeSession
-            mistakes={selectedDrillItems}
-            title={selectedDrill.name}
-            description={`${selectedDrillItems.length} selected mistake${
-              selectedDrillItems.length === 1 ? "" : "s"
-            } - fresh exercises from the same weak spots`}
-          />
-        </>
+        <SimilarMistakePracticeSession
+          mistakes={selectedDrillItems}
+          title={selectedDrill.name}
+          description={`${selectedDrillItems.length} selected mistake${
+            selectedDrillItems.length === 1 ? "" : "s"
+          } - fresh exercises from the same weak spots`}
+        />
       );
     }
 
@@ -365,19 +359,13 @@ export function DashboardMistakesHub({
           ? `${level} mistakes`
           : "Selected mistakes";
     return (
-      <>
-        <Section maxWidth="2xl" spacing="sm">
-          <HubTabs activeMode={mode} onChange={(nextMode) => navigate(nextMode, level)} />
-          <LevelFilter activeLevel={level} onChange={(nextLevel) => navigate(mode, nextLevel, undefined, practiceMode, part)} />
-        </Section>
-        <SimilarMistakePracticeSession
-          mistakes={groupDrillItems}
-          title={groupTitle}
-          description={`${groupDrillItems.length} mistake${
-            groupDrillItems.length === 1 ? "" : "s"
-          } from this group`}
-        />
-      </>
+      <SimilarMistakePracticeSession
+        mistakes={groupDrillItems}
+        title={groupTitle}
+        description={`${groupDrillItems.length} mistake${
+          groupDrillItems.length === 1 ? "" : "s"
+        } from this group`}
+      />
     );
   }
 
