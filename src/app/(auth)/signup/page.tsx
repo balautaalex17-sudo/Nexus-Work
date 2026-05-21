@@ -24,7 +24,12 @@ export default function SignupPage() {
       </header>
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <Card shapeIndex={2} className="w-full max-w-md px-8 md:px-12 py-12">
-          <AuthForm title="Create an account" submitLabel="Sign up" action={signupAction} />
+          <AuthForm
+            title="Create an account"
+            submitLabel="Sign up"
+            action={signupAction}
+            passwordAutoComplete="new-password"
+          />
           <p className="mt-8 pt-6 border-t border-dashed border-[#DED8CF] text-sm text-[#78786C]">
             Already registered?{" "}
             <Link href="/login" className="font-bold text-[#5D7052]">

@@ -1,3 +1,5 @@
+import "server-only";
+
 export const MODEL_NAME = "google/gemini-2.5-flash";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -8,8 +10,14 @@ export interface ChatRequest {
   json?: boolean;
   temperature?: number;
   topP?: number;
+  maxTokens?: number;
   signal?: AbortSignal;
 }
+
+const DEFAULT_MAX_TOKENS = (() => {
+  const raw = Number(process.env.OPENROUTER_MAX_TOKENS);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 4096;
+})();
 
 export class OpenRouterError extends Error {
   constructor(message: string, public readonly status?: number) {
@@ -24,6 +32,7 @@ export async function chatCompletion({
   json = false,
   temperature,
   topP,
+  maxTokens,
   signal,
 }: ChatRequest): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -34,6 +43,7 @@ export async function chatCompletion({
   const body: Record<string, unknown> = {
     model,
     messages: [{ role: "user", content: prompt }],
+    max_tokens: maxTokens ?? DEFAULT_MAX_TOKENS,
   };
   if (json) body.response_format = { type: "json_object" };
   if (temperature !== undefined) body.temperature = temperature;

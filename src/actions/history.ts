@@ -28,6 +28,7 @@ import {
   type WritingGenre,
   writingExamSpec,
 } from "@/lib/exercises/writing";
+import { safeActionError } from "@/lib/errors";
 
 export interface HistoryRow {
   id: string;
@@ -400,7 +401,7 @@ async function pruneCustomDrillSetRefs(
     .select("id, items")
     .eq("user_id", userId);
 
-  if (error) return error.message;
+  if (error) return safeActionError(error, "Could not prune drill sets.");
 
   for (const set of data ?? []) {
     const current = normalizeDrillSetItems(set.items);
@@ -413,14 +414,14 @@ async function pruneCustomDrillSetRefs(
         .delete()
         .eq("id", set.id as string)
         .eq("user_id", userId);
-      if (deleteError) return deleteError.message;
+      if (deleteError) return safeActionError(deleteError, "Could not prune drill sets.");
     } else {
       const { error: updateError } = await supabase
         .from("custom_drill_sets")
         .update({ items: next, updated_at: new Date().toISOString() })
         .eq("id", set.id as string)
         .eq("user_id", userId);
-      if (updateError) return updateError.message;
+      if (updateError) return safeActionError(updateError, "Could not prune drill sets.");
     }
   }
 
@@ -766,7 +767,9 @@ export async function deleteMistakeAction(input: {
     .eq("id", input.attemptId)
     .eq("user_id", user.id);
 
-  if (updateError) return { error: updateError.message };
+  if (updateError) {
+    return { error: safeActionError(updateError, "Could not delete the mistake. Try again.") };
+  }
 
   const pruneError = await pruneCustomDrillSetRefs(
     supabase,
@@ -821,7 +824,9 @@ export async function saveCustomDrillSetAction(input: {
       .eq("id", input.setId)
       .eq("user_id", user.id);
 
-    if (updateError) return { error: updateError.message };
+    if (updateError) {
+      return { error: safeActionError(updateError, "Could not update the drill set. Try again.") };
+    }
 
     revalidatePath("/dashboard/mistakes");
     return { ok: true, id: input.setId };
@@ -841,7 +846,7 @@ export async function saveCustomDrillSetAction(input: {
     .select("id")
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: safeActionError(error, "Could not save the drill set. Try again.") };
 
   revalidatePath("/dashboard/mistakes");
   return { ok: true, id: data.id as string };
@@ -862,7 +867,7 @@ export async function deleteCustomDrillSetAction(input: {
     .eq("id", input.setId)
     .eq("user_id", user.id);
 
-  if (error) return { error: error.message };
+  if (error) return { error: safeActionError(error, "Could not delete the drill set. Try again.") };
 
   revalidatePath("/dashboard/mistakes");
   return { ok: true };
@@ -1007,7 +1012,7 @@ export async function deleteAttemptAction(input: {
     .eq("id", input.attemptId)
     .eq("user_id", user.id);
 
-  if (error) return { error: error.message };
+  if (error) return { error: safeActionError(error, "Could not delete the attempt. Try again.") };
 
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/history");

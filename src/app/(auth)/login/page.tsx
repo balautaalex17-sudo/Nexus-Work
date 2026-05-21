@@ -4,13 +4,17 @@ import { loginAction } from "@/app/(auth)/actions";
 import { BlobField } from "@/components/ui/BlobField";
 import { Card } from "@/components/ui/Card";
 import { LogoMark } from "@/components/ui/Logo";
+import { friendlyAuthError } from "@/lib/errors";
 
 interface LoginPageProps {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; message?: string; error?: string }>;
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const next = (await searchParams).next;
+  const params = await searchParams;
+  const next = params.next;
+  const notice = params.error ? friendlyAuthError(params.error) : params.message;
+  const noticeTone = params.error ? "error" : "neutral";
 
   return (
     <main className="app-page min-h-screen relative overflow-hidden flex flex-col">
@@ -30,7 +34,14 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       </header>
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <Card shapeIndex={1} className="w-full max-w-md px-8 md:px-12 py-12">
-          <AuthForm title="Welcome back" submitLabel="Log in" action={loginAction} next={next} />
+          <AuthForm
+            title="Welcome back"
+            submitLabel="Log in"
+            action={loginAction}
+            next={next}
+            notice={notice}
+            noticeTone={noticeTone}
+          />
           <p className="mt-8 pt-6 border-t border-dashed border-[#DED8CF] text-sm text-[#78786C]">
             No account yet?{" "}
             <Link href="/signup" className="font-bold text-[#5D7052]">

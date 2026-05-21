@@ -15,6 +15,8 @@ import {
   writingTotalBand,
 } from "@/lib/exercises/aiWritingFeedback";
 import { isWritingPart, type WritingPartId } from "@/lib/exercises/writing";
+import { consumeAiQuota, quotaErrorMessage } from "@/lib/security/rateLimit";
+import { safeActionError } from "@/lib/errors";
 
 const writingExerciseSchema = exerciseSchema.refine(
   (exercise): exercise is WritingExercise =>
@@ -38,6 +40,11 @@ export async function submitWritingAction(input: {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return { error: "Unauthorized" };
+
+    const quota = await consumeAiQuota();
+    if (!quota.allowed) {
+      return { error: quotaErrorMessage(quota) };
+    }
 
     const parsed = writingExerciseSchema.safeParse(input.exercise);
     if (!parsed.success) return { error: "Submission is not a writing exercise." };
@@ -72,7 +79,9 @@ export async function submitWritingAction(input: {
       .select("id")
       .single();
 
-    if (error) return { error: error.message };
+    if (error) {
+      return { error: safeActionError(error, "Could not save the writing attempt. Try again.") };
+    }
 
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/writing");
@@ -80,6 +89,6 @@ export async function submitWritingAction(input: {
 
     return { id: data.id as string, total, max: WRITING_MAX_BAND };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Writing submit failed" };
+    return { error: safeActionError(error, "Writing submit failed. Try again.") };
   }
 }

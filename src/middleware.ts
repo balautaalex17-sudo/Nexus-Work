@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const protectedPrefixes = ["/dashboard", "/practice"];
+const publicPrefixes = ["/login", "/signup", "/auth"];
+
+function isPublicPath(pathname: string) {
+  if (pathname === "/") return true;
+  return publicPrefixes.some((prefix) => pathname.startsWith(prefix));
+}
 
 export async function middleware(request: NextRequest) {
   const { supabase, response } = await updateSession(request);
@@ -9,11 +14,7 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isProtected = protectedPrefixes.some((prefix) =>
-    request.nextUrl.pathname.startsWith(prefix),
-  );
-
-  if (!user && isProtected) {
+  if (!user && !isPublicPath(request.nextUrl.pathname)) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", request.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);

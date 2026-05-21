@@ -23,6 +23,8 @@ import {
   isWritingPart,
   type WritingGenre,
 } from "@/lib/exercises/writing";
+import { consumeAiQuota, quotaErrorMessage } from "@/lib/security/rateLimit";
+import { safeActionError } from "@/lib/errors";
 
 const partMap: Record<Exercise["type"], PartId> = {
   use_of_english_part1: "part1",
@@ -65,6 +67,11 @@ export async function generateExerciseAction(
 
     if (!user) {
       return { error: "Unauthorized" };
+    }
+
+    const quota = await consumeAiQuota();
+    if (!quota.allowed) {
+      return { error: quotaErrorMessage(quota) };
     }
 
     const resolvedGenre = isWritingPart(part) ? parseGenre(genre) : undefined;
@@ -123,7 +130,7 @@ export async function generateExerciseAction(
           "The AI returned a malformed paper twice. Please try again; the app will repair common format mistakes automatically.",
       };
     }
-    return { error: message };
+    return { error: safeActionError(error, "Could not generate an exercise. Try again.") };
   }
 }
 
@@ -138,6 +145,11 @@ export async function submitAttemptAction(input: {
     } = await supabase.auth.getUser();
     if (!user) {
       return { error: "Unauthorized" };
+    }
+
+    const quota = await consumeAiQuota();
+    if (!quota.allowed) {
+      return { error: quotaErrorMessage(quota) };
     }
 
     const exercise = exerciseSchema.parse(input.exercise);
@@ -183,7 +195,7 @@ export async function submitAttemptAction(input: {
       .single();
 
     if (error) {
-      return { error: error.message };
+      return { error: safeActionError(error, "Could not save the attempt. Try again.") };
     }
 
     revalidatePath("/dashboard");
@@ -192,7 +204,7 @@ export async function submitAttemptAction(input: {
 
     return { id: data.id as string, score, maxScore };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Submit failed" };
+    return { error: safeActionError(error, "Submit failed. Try again.") };
   }
 }
 
@@ -211,6 +223,11 @@ export async function retryItemAction(input: {
     } = await supabase.auth.getUser();
     if (!user) {
       return { error: "Unauthorized" };
+    }
+
+    const quota = await consumeAiQuota();
+    if (!quota.allowed) {
+      return { error: quotaErrorMessage(quota) };
     }
 
     const { data: row, error: loadError } = await supabase
@@ -271,7 +288,7 @@ export async function retryItemAction(input: {
       .eq("user_id", user.id);
 
     if (updateError) {
-      return { error: updateError.message };
+      return { error: safeActionError(updateError, "Could not save the retry. Try again.") };
     }
 
     revalidatePath("/dashboard");
@@ -286,7 +303,7 @@ export async function retryItemAction(input: {
       accepted: perItem[input.itemKey] === true,
     };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Retry failed" };
+    return { error: safeActionError(error, "Retry failed. Try again.") };
   }
 }
 
@@ -306,6 +323,11 @@ export async function submitMistakePracticeAction(input: {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return { error: "Unauthorized" };
+
+    const quota = await consumeAiQuota();
+    if (!quota.allowed) {
+      return { error: quotaErrorMessage(quota) };
+    }
 
     const items = input.items
       .map((item) => ({
@@ -328,7 +350,9 @@ export async function submitMistakePracticeAction(input: {
       .eq("user_id", user.id)
       .in("id", Array.from(byAttempt.keys()));
 
-    if (loadError || !rows) return { error: loadError?.message ?? "Could not load mistakes." };
+    if (loadError || !rows) {
+      return { error: safeActionError(loadError, "Could not load mistakes.") };
+    }
 
     const prepared = rows.map((row) => {
       const exercise = exerciseSchema.parse(row.exercise);
@@ -412,7 +436,9 @@ export async function submitMistakePracticeAction(input: {
         .eq("id", entry.row.id as string)
         .eq("user_id", user.id);
 
-      if (updateError) return { error: updateError.message };
+      if (updateError) {
+        return { error: safeActionError(updateError, "Could not save mistake practice. Try again.") };
+      }
 
       revalidatePath(`/dashboard/history/${entry.row.id as string}`);
     }
@@ -428,6 +454,6 @@ export async function submitMistakePracticeAction(input: {
       maxScore: results.length,
     };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Mistake test failed" };
+    return { error: safeActionError(error, "Mistake test failed. Try again.") };
   }
 }
