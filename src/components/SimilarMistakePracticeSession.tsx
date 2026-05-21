@@ -75,6 +75,120 @@ function renderPassageWithBlanks(text: string, kind: "choice" | "text") {
   });
 }
 
+function previewText(value: string, maxLength = 170) {
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  if (cleaned.length <= maxLength) return cleaned;
+  return `${cleaned.slice(0, maxLength).trim()}...`;
+}
+
+function CorrectionReview({
+  drills,
+  results,
+  answers,
+  score,
+  maxScore,
+}: {
+  drills: SimilarDrillSetItem[];
+  results: Record<string, SimilarDrillSetResult>;
+  answers: Record<string, string>;
+  score: number;
+  maxScore: number;
+}) {
+  const correct = drills.filter((entry) => results[refKey(entry.ref)]?.accepted);
+  const mistakes = drills.filter((entry) => {
+    const result = results[refKey(entry.ref)];
+    return result && !result.accepted;
+  });
+
+  const renderRow = (entry: SimilarDrillSetItem, accepted: boolean) => {
+    const key = refKey(entry.ref);
+    const result = results[key];
+    const yourAnswer = (answers[key] ?? "").trim();
+
+    return (
+      <article
+        key={key}
+        className={cn(
+          "rounded-2xl border bg-white/70 p-4",
+          accepted ? "border-[#5D7052]/20" : "border-[#A85448]/20",
+        )}
+      >
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span
+            className={cn(
+              "rounded-full px-3 py-1 text-xs font-bold",
+              accepted ? "bg-[#5D7052]/10 text-[#5D7052]" : "bg-[#A85448]/10 text-[#A85448]",
+            )}
+          >
+            {accepted ? "Correct" : "Needs work"}
+          </span>
+          <span className="text-xs font-bold uppercase tracking-widest text-[#78786C]">
+            {entry.source.partName}
+          </span>
+        </div>
+        <p className="font-display text-lg leading-snug text-[#2C2C24]">
+          {previewText(entry.drill.prompt)}
+        </p>
+        <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+          <p>
+            <span className="font-bold uppercase tracking-wider text-[#78786C]">You wrote </span>
+            <span className={accepted ? "font-bold text-[#5D7052]" : "font-bold text-[#A85448]"}>
+              {yourAnswer || "(blank)"}
+            </span>
+          </p>
+          <p>
+            <span className="font-bold uppercase tracking-wider text-[#78786C]">Answer </span>
+            <span className="font-bold text-[#5D7052]">{result?.correctAnswer}</span>
+          </p>
+        </div>
+        {!accepted && result?.explanation ? (
+          <p className="mt-3 rounded-xl bg-[#E6DCCD]/45 p-3 text-sm leading-relaxed text-[#4A4A40]">
+            {result.explanation}
+          </p>
+        ) : null}
+      </article>
+    );
+  };
+
+  return (
+    <div className="app-card mt-8">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="eyebrow mb-2">Correction review</p>
+          <h3 className="font-display text-3xl text-[#2C2C24]">What changed this round.</h3>
+        </div>
+        <span className="rounded-full bg-[#5D7052]/10 px-4 py-1.5 text-sm font-bold text-[#5D7052]">
+          {score}/{maxScore} correct
+        </span>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="rounded-3xl border border-[#5D7052]/20 bg-[#5D7052]/5 p-4">
+          <p className="mb-3 text-xs font-bold uppercase tracking-widest text-[#5D7052]">
+            Correct ({correct.length})
+          </p>
+          {correct.length === 0 ? (
+            <p className="text-sm text-[#78786C]">None this round.</p>
+          ) : (
+            <div className="space-y-3">{correct.map((entry) => renderRow(entry, true))}</div>
+          )}
+        </section>
+
+        <section className="rounded-3xl border border-[#A85448]/20 bg-[#A85448]/5 p-4">
+          <p className="mb-3 text-xs font-bold uppercase tracking-widest text-[#A85448]">
+            Needs work ({mistakes.length})
+          </p>
+          {mistakes.length === 0 ? (
+            <p className="text-sm text-[#78786C]">Nothing to review. Perfect set.</p>
+          ) : (
+            <div className="space-y-3">{mistakes.map((entry) => renderRow(entry, false))}</div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
 type Phase =
   | { kind: "loading" }
   | { kind: "error"; message: string }
@@ -283,66 +397,6 @@ export function SimilarMistakePracticeSession({
         </div>
       ) : null}
 
-      {phase.kind === "graded" ? (
-        <div className="app-card mb-5">
-          <p className="eyebrow mb-3">Review</p>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-[#5D7052]/20 bg-[#5D7052]/5 p-4">
-              <p className="mb-1 text-xs font-bold uppercase tracking-widest text-[#5D7052]">
-                Correct ({phase.score})
-              </p>
-              {phase.drills.filter((entry) => phase.results[refKey(entry.ref)]?.accepted).length === 0 ? (
-                <p className="text-sm text-[#78786C]">None this round.</p>
-              ) : (
-                <ul className="space-y-1 text-sm text-[#4A4A40]">
-                  {phase.drills
-                    .filter((entry) => phase.results[refKey(entry.ref)]?.accepted)
-                    .map((entry) => (
-                      <li key={refKey(entry.ref)}>
-                        <span className="font-bold text-[#5D7052]">
-                          {phase.results[refKey(entry.ref)]?.correctAnswer}
-                        </span>{" "}
-                        <span className="text-[#78786C]">
-                          — {entry.source.partName}
-                        </span>
-                      </li>
-                    ))}
-                </ul>
-              )}
-            </div>
-            <div className="rounded-2xl border border-[#A85448]/20 bg-[#A85448]/5 p-4">
-              <p className="mb-1 text-xs font-bold uppercase tracking-widest text-[#A85448]">
-                Mistakes ({phase.maxScore - phase.score})
-              </p>
-              {phase.drills.filter((entry) => phase.results[refKey(entry.ref)] && !phase.results[refKey(entry.ref)].accepted).length === 0 ? (
-                <p className="text-sm text-[#78786C]">Nothing to review — perfect set.</p>
-              ) : (
-                <ul className="space-y-2 text-sm text-[#4A4A40]">
-                  {phase.drills
-                    .filter(
-                      (entry) =>
-                        phase.results[refKey(entry.ref)] &&
-                        !phase.results[refKey(entry.ref)].accepted,
-                    )
-                    .map((entry) => {
-                      const result = phase.results[refKey(entry.ref)];
-                      const yourAnswer = (answers[refKey(entry.ref)] ?? "").trim();
-                      return (
-                        <li key={refKey(entry.ref)}>
-                          <span className="text-[#78786C]">You wrote: </span>
-                          <span className="font-bold text-[#A85448]">{yourAnswer || "(blank)"}</span>
-                          <span className="mx-1 text-[#78786C]">→</span>
-                          <span className="font-bold text-[#5D7052]">{result.correctAnswer}</span>
-                          <span className="ml-1 text-[#78786C]">({entry.source.partName})</span>
-                        </li>
-                      );
-                    })}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {phase.kind === "ready" || phase.kind === "grading" || phase.kind === "graded" ? (
         <div className="space-y-5">
@@ -357,7 +411,7 @@ export function SimilarMistakePracticeSession({
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="eyebrow mb-2">
-                      {entry.source.exam} — {entry.source.partName} · Q{entry.source.questionNumber}
+                      {entry.source.exam} - {entry.source.partName} - Q{entry.source.questionNumber}
                     </p>
                     <h3 className="font-display text-2xl text-[#2C2C24]">
                       {renderPromptWithBlanks(entry.drill.prompt)}
@@ -449,6 +503,16 @@ export function SimilarMistakePracticeSession({
             );
           })}
         </div>
+      ) : null}
+
+      {phase.kind === "graded" ? (
+        <CorrectionReview
+          drills={phase.drills}
+          results={phase.results}
+          answers={answers}
+          score={phase.score}
+          maxScore={phase.maxScore}
+        />
       ) : null}
 
       {phase.kind === "ready" || phase.kind === "grading" ? (

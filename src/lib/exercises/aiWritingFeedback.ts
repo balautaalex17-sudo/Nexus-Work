@@ -33,10 +33,10 @@ export const writingFeedbackSchema = z.object({
 
 export type WritingFeedback = z.infer<typeof writingFeedbackSchema>;
 
-const FEEDBACK_TIMEOUT_MS = Number(process.env.AI_WRITING_TIMEOUT_MS ?? "45000");
+const FEEDBACK_TIMEOUT_MS = Number(process.env.AI_WRITING_TIMEOUT_MS ?? "65000");
 
 function feedbackSignal() {
-  const ms = Number.isFinite(FEEDBACK_TIMEOUT_MS) ? FEEDBACK_TIMEOUT_MS : 45000;
+  const ms = Number.isFinite(FEEDBACK_TIMEOUT_MS) ? FEEDBACK_TIMEOUT_MS : 65000;
   return AbortSignal.timeout(ms);
 }
 
@@ -120,7 +120,11 @@ Mark on the Cambridge four-criteria rubric, awarding an integer band 0-5 for EAC
 - Language: range and accuracy of vocabulary and grammar at the target level.
 
 Then write:
-- "overall": one paragraph of 80-130 words summarising the strongest and weakest aspects in plain English. Mention the band ranges, the most consequential weakness, and ONE concrete thing the candidate should focus on next.
+- Important detail requirement: make the feedback significantly more specific than a normal summary. The "overall" paragraph must be 120-180 words and name the next two practice priorities.
+- For "notes", write exactly 5 detailed notes per criterion unless the response is extremely short; for extremely short responses write at least 3 notes per criterion explaining what is missing.
+- Each note must be 45-90 words and include all three parts in one paragraph: Evidence from the response, why it matters for the Cambridge criterion, and a concrete fix or rewrite the learner can use next time.
+- Do not write generic notes like "use more vocabulary" or "organise better". Every note needs a quote, paragraph/sentence reference, or missing-task-point reference.
+- "overall": one paragraph of 120-180 words summarising the strongest and weakest aspects in plain English. Mention the band ranges, the most consequential weakness, and the next two practice priorities.
 - "notes": detailed, criterion-specific feedback. Aim for 4-6 substantive bullets per criterion. Each bullet must:
     * QUOTE the candidate's wording in inline double-quotes (e.g. "...the situation was very bad...") or describe a concrete moment by paragraph/sentence position;
     * EXPLAIN what's strong or weak about it in Cambridge rubric terms;
@@ -176,7 +180,7 @@ export async function gradeWriting(input: {
     const raw = await chatJson<unknown>({
       prompt,
       temperature: 0.2,
-      maxTokens: 4096,
+      maxTokens: 7000,
       signal: feedbackSignal(),
     });
 

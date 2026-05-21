@@ -10,5 +10,6 @@ export async function consumeAiQuota(): Promise<QuotaResult> {
 }
 
 export function quotaErrorMessage(_result: QuotaResult): string {
+  void _result;
   return "Could not verify usage quota. Try again.";
 }

@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { Exam } from "@/lib/exercises/types";
 import { isWritingPart, writingExamSpec } from "@/lib/exercises/writing";
 
@@ -80,6 +81,7 @@ export function MistakeLibrary({ mistakes, drillSets }: MistakeLibraryProps) {
   const [targetSetId, setTargetSetId] = useState("new");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mistakeToDelete, setMistakeToDelete] = useState<MistakeRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   const groups = useMemo(() => {
@@ -168,12 +170,9 @@ export function MistakeLibrary({ mistakes, drillSets }: MistakeLibraryProps) {
     });
   };
 
-  const deleteMistake = (mistake: MistakeRow) => {
-    const ok = window.confirm(
-      `Delete question ${mistake.questionNumber} from Mistakes? This keeps the completed paper, but removes this mistake from the library and drill sets.`,
-    );
-    if (!ok) return;
-
+  const deleteMistake = () => {
+    if (!mistakeToDelete) return;
+    const mistake = mistakeToDelete;
     setError(null);
     setMessage(null);
     startTransition(async () => {
@@ -192,6 +191,7 @@ export function MistakeLibrary({ mistakes, drillSets }: MistakeLibraryProps) {
         next.delete(refKey(mistake));
         return next;
       });
+      setMistakeToDelete(null);
       setMessage("Mistake deleted.");
       router.refresh();
     });
@@ -215,6 +215,21 @@ export function MistakeLibrary({ mistakes, drillSets }: MistakeLibraryProps) {
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog
+        open={Boolean(mistakeToDelete)}
+        danger
+        title={
+          mistakeToDelete
+            ? `Delete question ${mistakeToDelete.questionNumber}?`
+            : "Delete mistake?"
+        }
+        description="The completed paper will stay in your history, but this mistake will be removed from the mistake library and any drill sets that use it."
+        confirmLabel="Delete mistake"
+        pending={pending}
+        onCancel={() => setMistakeToDelete(null)}
+        onConfirm={deleteMistake}
+      />
+
       <div className="rounded-[1.5rem] border border-[#DED8CF] bg-[#FFFCF4]/95 p-4 shadow-soft md:p-5">
         <div className="grid gap-4 xl:grid-cols-[minmax(220px,0.9fr)_minmax(360px,1.2fr)_auto] xl:items-end">
           <div>
@@ -378,17 +393,24 @@ export function MistakeLibrary({ mistakes, drillSets }: MistakeLibraryProps) {
                     const drillable = canDrill(mistake);
 
                     return (
-                      <div key={key} className="grid gap-4 p-6 lg:grid-cols-[auto_1fr_auto]">
-                        <label className="flex items-center gap-3 text-sm font-bold text-[#4A4A40]">
-                          <input
-                            type="checkbox"
-                            className="h-5 w-5 accent-[#5D7052]"
-                            checked={checked}
-                            disabled={pending || !drillable}
-                            onChange={() => toggle(mistake)}
-                          />
-                          {drillable ? "Add" : "Tracked"}
-                        </label>
+                      <div
+                        key={key}
+                        className={`grid gap-4 p-6 ${
+                          drillable ? "lg:grid-cols-[auto_1fr_auto]" : "lg:grid-cols-[1fr_auto]"
+                        }`}
+                      >
+                        {drillable ? (
+                          <label className="flex items-center gap-3 text-sm font-bold text-[#4A4A40]">
+                            <input
+                              type="checkbox"
+                              className="h-5 w-5 accent-[#5D7052]"
+                              checked={checked}
+                              disabled={pending}
+                              onChange={() => toggle(mistake)}
+                            />
+                            Add
+                          </label>
+                        ) : null}
                         <div>
                           <div className="mb-2 flex flex-wrap gap-2">
                             <span className={mistake.resolved ? "status-pass" : "status-fail"}>
@@ -446,7 +468,7 @@ export function MistakeLibrary({ mistakes, drillSets }: MistakeLibraryProps) {
                             size="sm"
                             disabled={pending}
                             className="text-[#A85448] hover:bg-[#A85448]/10 hover:text-[#A85448]"
-                            onClick={() => deleteMistake(mistake)}
+                            onClick={() => setMistakeToDelete(mistake)}
                           >
                             Delete mistake
                           </Button>

@@ -17,19 +17,24 @@ export function WritingBrief({ exercise }: WritingBriefProps) {
   const part = exercise.type as WritingPartId;
   const spec = writingExamSpec(exercise.exam, part);
   const brief = writingBriefView(exercise);
+  const taskLabel =
+    spec.allowedGenres.length === 1 ? spec.selectorName : spec.taskTypes;
+  const showGenre = spec.allowedGenres.length > 1;
 
   return (
     <article className="space-y-6">
       <div className="flex flex-wrap gap-2">
         <span className="rounded-full bg-[#E6DCCD] px-3 py-1 text-xs font-bold text-[#4A4A40]">
-          {spec.taskTypes}
+          {taskLabel}
         </span>
         <span className="rounded-full bg-[#5D7052]/10 px-3 py-1 text-xs font-bold text-[#5D7052]">
           {writingWordTarget(exercise.exam, part)}
         </span>
-        <span className="rounded-full bg-[#C18C5D]/15 px-3 py-1 text-xs font-bold text-[#9A6730]">
-          {WRITING_GENRE_LABEL[exercise.genre]}
-        </span>
+        {showGenre ? (
+          <span className="rounded-full bg-[#C18C5D]/15 px-3 py-1 text-xs font-bold text-[#9A6730]">
+            {WRITING_GENRE_LABEL[exercise.genre]}
+          </span>
+        ) : null}
       </div>
 
       {brief.taskContext ? (

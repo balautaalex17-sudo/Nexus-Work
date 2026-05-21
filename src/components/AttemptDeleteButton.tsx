@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteAttemptAction } from "@/actions/history";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface AttemptDeleteButtonProps {
   attemptId: string;
@@ -14,31 +15,40 @@ export function AttemptDeleteButton({ attemptId, title }: AttemptDeleteButtonPro
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const deleteAttempt = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteAttemptAction({ attemptId });
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setConfirmOpen(false);
+      router.refresh();
+    });
+  };
 
   return (
     <div className="inline-flex flex-col items-start gap-1">
+      <ConfirmDialog
+        open={confirmOpen}
+        danger
+        title="Delete completed paper?"
+        description={`This will delete "${title}", its mistake log, and any drill-set questions from it.`}
+        confirmLabel="Delete paper"
+        pending={pending}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={deleteAttempt}
+      />
       <Button
         type="button"
         variant="ghost"
         size="sm"
         disabled={pending}
         className="text-[#A85448] hover:bg-[#A85448]/10 hover:text-[#A85448]"
-        onClick={() => {
-          const ok = window.confirm(
-            `Delete completed paper "${title}"? This removes the paper, its mistake log, and any drill-set questions from it.`,
-          );
-          if (!ok) return;
-
-          setError(null);
-          startTransition(async () => {
-            const result = await deleteAttemptAction({ attemptId });
-            if ("error" in result) {
-              setError(result.error);
-              return;
-            }
-            router.refresh();
-          });
-        }}
+        onClick={() => setConfirmOpen(true)}
       >
         {pending ? "Deleting..." : "Delete"}
       </Button>

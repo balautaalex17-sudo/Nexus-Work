@@ -23,12 +23,16 @@ function bandTone(band: number) {
   return { fill: "bg-[#A85448]", text: "text-[#A85448]" };
 }
 
+function weakestCriterion(feedback: WritingFeedback): CriterionKey {
+  return [...CRITERIA].sort((a, b) => feedback[a.key] - feedback[b.key])[0].key;
+}
+
 interface WritingFeedbackPanelProps {
   feedback: WritingFeedback;
 }
 
 export function WritingFeedbackPanel({ feedback }: WritingFeedbackPanelProps) {
-  const [openKey, setOpenKey] = useState<CriterionKey | null>(null);
+  const [openKey, setOpenKey] = useState<CriterionKey | null>(() => weakestCriterion(feedback));
 
   return (
     <div className="space-y-6">
@@ -75,6 +79,13 @@ export function WritingFeedbackPanel({ feedback }: WritingFeedbackPanelProps) {
       </div>
 
       <div className="space-y-3">
+        <div>
+          <p className="eyebrow mb-2">Detailed notes</p>
+          <p className="text-sm text-[#78786C]">
+            Open each criterion for evidence from your answer, why it affects the band, and a
+            concrete fix for the next attempt.
+          </p>
+        </div>
         {CRITERIA.map((criterion) => {
           const notes = feedback.notes[criterion.key];
           const isOpen = openKey === criterion.key;
@@ -105,13 +116,32 @@ export function WritingFeedbackPanel({ feedback }: WritingFeedbackPanelProps) {
                   </svg>
                 </span>
               </summary>
-              <ul className="mt-4 space-y-2 list-disc pl-6 marker:text-[#5D7052] text-sm text-[#4A4A40]">
+              <div className="mt-4 grid gap-3">
                 {notes.length === 0 ? (
-                  <li className="list-none text-[#78786C]">No specific notes from the marker.</li>
+                  <p className="rounded-2xl border border-[#DED8CF]/70 bg-[#FDFCF8] p-4 text-sm text-[#78786C]">
+                    No specific notes from the marker.
+                  </p>
                 ) : (
-                  notes.map((note, index) => <li key={`${criterion.key}-${index}`}>{note}</li>)
+                  notes.map((note, index) => (
+                    <article
+                      key={`${criterion.key}-${index}`}
+                      className="rounded-2xl border border-[#DED8CF]/70 bg-[#FDFCF8] p-4 text-sm leading-relaxed text-[#4A4A40]"
+                    >
+                      <div className="mb-2 flex items-center gap-2">
+                        <span
+                          className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white ${tone.fill}`}
+                        >
+                          {index + 1}
+                        </span>
+                        <span className="text-xs font-bold uppercase tracking-widest text-[#78786C]">
+                          Examiner note
+                        </span>
+                      </div>
+                      <p>{note}</p>
+                    </article>
+                  ))
                 )}
-              </ul>
+              </div>
             </details>
           );
         })}
